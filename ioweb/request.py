@@ -47,6 +47,7 @@ class BaseRequest(object):
 
     @classmethod
     def from_data(cls, data):
+        # TODO: check config keys against `get_default_config` keys
         req = Request()
         for key in ('config', 'retry_count', 'priority', 'meta'):
             setattr(req, key, data[key])
@@ -63,6 +64,7 @@ class BaseRequest(object):
 
 
 class Request(BaseRequest):
+    # TODO: remove, use keys from default_config_keys
     valid_config_keys = (
         'name', 'url',
         'max_redirects',
@@ -126,6 +128,7 @@ class CallbackRequest(BaseRequest):
     It has `network_callback` which is
     executed instead of `transport.request`
     """
+    # TODO: remove, use keys from default_config_keys
     valid_config_keys = (
         'name',
         'timeout',
