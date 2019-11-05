@@ -18,6 +18,7 @@ from cachetools import TTLCache
 log = logging.getLogger(__name__)
 
 
+# TODO: just use _custom_ip in `.host` getter
 class CustomHttpsConnection(HTTPSConnection, object):
     def __init__(self, *args, **kwargs):
         # custom: begins
@@ -53,6 +54,7 @@ class CustomHttpsConnection(HTTPSConnection, object):
         return conn
 
 
+# TODO: just use _custom_ip in `.host` getter
 class CustomHttpConnection(HTTPConnection, object):
     def __init__(self, *args, **kwargs):
         # custom: begins
@@ -88,6 +90,7 @@ class CustomHttpConnection(HTTPConnection, object):
         return conn
 
 
+# TODO: just put custom_ip key into `self.conn_kw` in __init__
 class CustomHttpConnectionPool(HTTPConnectionPool):
     def __init__(self, *args, **kwargs):
         # custom: begins
@@ -113,6 +116,7 @@ class CustomHttpConnectionPool(HTTPConnectionPool):
         )
         return conn
 
+# TODO: just put custom_ip key into `self.conn_kw` in __init__
 class CustomHttpsConnectionPool(HTTPSConnectionPool):
     def __init__(self, *args, **kwargs):
         # custom: begins
@@ -164,6 +168,10 @@ class CustomHttpsConnectionPool(HTTPSConnectionPool):
     # custom: ends
 
 
+# TODO:
+# 1) add custom_ip key to `self.connection_pool_kw` in __init__
+# 2) in child _new_pool if request_context is not None
+#    add custom_ip key to it
 class CustomPoolManager(PoolManager):
 
     def __init__(self, *args, **kwargs):
