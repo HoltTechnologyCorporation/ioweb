@@ -42,6 +42,7 @@ class Crawler(object):
             retry_limit=3,
             extra_data=None,
             stop_on_handler_error=False,
+            debug=False,
         ):
         if extra_data is None:
             self.extra_data = {}
@@ -78,6 +79,7 @@ class Crawler(object):
         self.error_logger = ErrorLogger()
         self.stop_on_handler_error = stop_on_handler_error
         self.proxylist = None
+        self.debug = debug
 
         self.init_hook()
 
@@ -370,14 +372,14 @@ class Crawler(object):
     def run_hook(self):
         pass
 
-    def thread_stat(self):
+    def thread_debug(self):
         try:
             while not self.shutdown_event.is_set():
                 stat = []
                 now = time.time()
                 for hdl in self.network.active_handlers:
                     stat.append((hdl, self.network.registry[hdl]['start']))
-                with open('var/crawler.stat', 'w') as out:
+                with open('var/crawler.debug', 'w') as out:
                     for hdl, start in list(sorted(stat, key=lambda x: (x[1] or now), reverse=True)):
                         req = self.network.registry[hdl]['request']
                         out.write('%.2f - [#%s] - %s\n' % (
@@ -428,8 +430,9 @@ class Crawler(object):
             th_task_gen = Thread(target=self.thread_task_generator)
             th_task_gen.start()
 
-            th_stat = Thread(target=self.thread_stat)
-            #th_stat.start()
+            th_debug = Thread(target=self.thread_debug)
+            if self.debug:
+                th_debug.start()
 
             pauses = [self.network_pause]
             result_workers = []
@@ -457,7 +460,8 @@ class Crawler(object):
             th_manager.join()
             th_fatalq_proc.join()
             th_task_gen.join()
-            #th_stat.join()
+            if self.debug:
+                th_debug.join()
             [x.join() for x in result_workers]
 
         except (Exception, KeyboardInterrupt):

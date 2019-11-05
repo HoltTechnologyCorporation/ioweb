@@ -106,6 +106,7 @@ def run_subcommand_crawl(opts):
     bot = cls(
         network_threads=opts.network_threads,
         extra_data=extra_data,
+        debug=opts.debug,
     )
     try:
         if opts.profile:
@@ -166,6 +167,7 @@ def command_ioweb():
     crawl_subparser.add_argument('-t', '--network-threads', type=int, default=1)
     crawl_subparser.add_argument('-n', '--network-logs', action='store_true', default=False)
     crawl_subparser.add_argument('-p', '--profile', action='store_true', default=False)
+    crawl_subparser.add_argument('--debug', action='store_true', default=False)
     #parser.add_argument('--control-logs', action='store_true', default=False)
     if crawler_cls:
         crawler_cls.update_arg_parser(crawl_subparser)
