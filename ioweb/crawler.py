@@ -300,6 +300,10 @@ class Crawler(object):
                             pause.resume_event.set()
                         self.shutdown_event.set()
                         return
+                    else:
+                        for pause in pauses:
+                            pause.pause_event.clear()
+                            pause.resume_event.set()
         except (KeyboardInterrupt, Exception) as ex:
             self.fatalq.put((sys.exc_info(), None))
 
