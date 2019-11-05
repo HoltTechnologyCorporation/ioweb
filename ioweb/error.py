@@ -98,10 +98,10 @@ ERRNO_CLASS_MAPPING = {
 
 
 def get_error_tag(err):
-    if isinstance(err, NetworkError):
-        return err.transport_error.__class__.__name__.lower()
-    else:
-        return err.__class__.__name__.lower()
+    original_err = err
+    if isinstance(err, NetworkError) and err.transport_error:
+        original_err = err.transport_error
+    return original_err.__class__.__name__.lower()
 
 
 def collect_error_context(req):
