@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 import traceback
 import sys
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
@@ -148,6 +148,19 @@ class Urllib3Transport(object):
         options = {}
         headers = req['headers'] or {}
 
+        req_url = req['url']
+        if not '://' in req_url:
+            req_url = 'http://%s' % req_url
+        url_parts = urlsplit(req_url)
+        if url_parts.scheme not in ('http', 'https'):
+            emsg = 'Unknown scheme [%s]' % url_parts.scheme
+            # second argument saved as `err.transport_error`
+            # and used then to generate short code of error
+            # for statistics
+            raise error.InvalidUrlError(
+                emsg, error.InvalidUrlError(emsg),
+            )
+
         pool = self.get_pool(req)
 
         self.op_started = time.time()
@@ -197,7 +210,7 @@ class Urllib3Transport(object):
                 }
             self.urllib3_response = pool.urlopen(
                 req.method(),
-                req['url'],
+                req_url,
                 headers=headers,
                 # total - set to None to remove this constraint
                 # and fall back on other counts. 
