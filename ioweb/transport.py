@@ -60,6 +60,8 @@ class Urllib3Transport(object):
             raise error.ConnectError(str(ex), ex)
         except exceptions.LocationParseError as ex:
             raise error.MalformedResponseError(str(ex), ex)
+        except exceptions.LocationValueError as ex:
+            raise error.InvalidUrlError(str(ex), ex)
         except exceptions.DecodeError as ex:
             raise error.MalformedResponseError(str(ex), ex)
         except exceptions.InvalidHeader as ex:
@@ -84,6 +86,19 @@ class Urllib3Transport(object):
                 raise error.MalformedResponseError('Invalid redirect header')
             else:
                 raise
+        except UnicodeEncodeError as ex:
+            # UnicodeEncodeError is subclass of ValueError
+            etype, evalue, tb = sys.exc_info()
+            frames = traceback.extract_tb(tb)
+            #    self._output(request.encode('ascii'))
+            #UnicodeEncodeError: 'ascii' codec can't encode characters
+            #in position 15-24: ordinal not in range(128)
+            if 'self._output(request.encode' in frames[-1].line:
+                raise error.InvalidUrlError(
+                    'Non ASCII URL: %s' % req.config.get('url')
+                )
+            else:
+                raise
         except ValueError as ex:
             if 'Invalid IPv6 URL' in str(ex):
                 raise error.MalformedResponseError('Invalid redirect header')
@@ -98,7 +113,8 @@ class Urllib3Transport(object):
                 )
             else:
                 raise
-            #import pdb; pdb.set_trace()
+
+
 
     def get_pool(self, req):
         if req['proxy']:
