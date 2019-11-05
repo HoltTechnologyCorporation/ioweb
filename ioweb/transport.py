@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 import traceback
 import sys
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
@@ -45,7 +45,7 @@ class Urllib3Transport(object):
         pass
 
     @contextmanager
-    def handle_network_error(self):
+    def handle_network_error(self, req):
         try:
             yield
         except exceptions.ReadTimeoutError as ex:
@@ -89,6 +89,16 @@ class Urllib3Transport(object):
                 raise error.MalformedResponseError('Invalid redirect header')
             else:
                 raise
+        except KeyError as ex:
+            etype, evalue, tb = sys.exc_info()
+            frames = traceback.extract_tb(tb)
+            if 'self.key_fn_by_scheme[scheme]' in frames[-1].line:
+                raise error.InvalidUrlError(
+                    'Unknown URL scheme: %s' % req.config.get('url')
+                )
+            else:
+                raise
+            #import pdb; pdb.set_trace()
 
     def get_pool(self, req):
         if req['proxy']:
@@ -148,18 +158,18 @@ class Urllib3Transport(object):
         options = {}
         headers = req['headers'] or {}
 
-        req_url = req['url']
-        if not '://' in req_url:
-            req_url = 'http://%s' % req_url
-        url_parts = urlsplit(req_url)
-        if url_parts.scheme not in ('http', 'https'):
-            emsg = 'Unknown scheme [%s]' % url_parts.scheme
-            # second argument saved as `err.transport_error`
-            # and used then to generate short code of error
-            # for statistics
-            raise error.InvalidUrlError(
-                emsg, error.InvalidUrlError(emsg),
-            )
+        #req_url = req['url']
+        #if not '://' in req_url:
+        #    req_url = 'http://%s' % req_url
+        #url_parts = urlsplit(req_url)
+        #if url_parts.scheme not in ('http', 'https'):
+        #    emsg = 'Unknown scheme [%s]' % url_parts.scheme
+        #    # second argument saved as `err.transport_error`
+        #    # and used then to generate short code of error
+        #    # for statistics
+        #    raise error.InvalidUrlError(
+        #        emsg, error.InvalidUrlError(emsg),
+        #    )
 
         pool = self.get_pool(req)
 
@@ -197,7 +207,7 @@ class Urllib3Transport(object):
                 )
             headers['Content-Length'] = len(options['body'])
 
-        with self.handle_network_error():
+        with self.handle_network_error(req):
             if req['follow_redirect']:
                 retry_opts = {
                     'redirect': req['max_redirects'],
@@ -208,9 +218,10 @@ class Urllib3Transport(object):
                     'redirect': False,
                     'raise_on_redirect': False,
                 }
+            #try:
             self.urllib3_response = pool.urlopen(
                 req.method(),
-                req_url,
+                req['url'],
                 headers=headers,
                 # total - set to None to remove this constraint
                 # and fall back on other counts. 
@@ -228,6 +239,11 @@ class Urllib3Transport(object):
                 decode_content=req['decode_content'],
                 **options
             )
+            #except UnicodeEncodeError as ex:
+            #    print('ERROR', ex)
+            #    print('URL', req['url'])
+            #    import pdb; pdb.set_trace()
+            #    #raise
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
@@ -266,7 +282,7 @@ class Urllib3Transport(object):
                             .get_peer_cert_chain()
                         )
 
-                    with self.handle_network_error():
+                    with self.handle_network_error(req):
                         self.read_with_timeout(req, res)
                 except error.NetworkError as ex:
                     if raise_network_error:
