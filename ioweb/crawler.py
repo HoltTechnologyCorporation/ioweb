@@ -250,6 +250,12 @@ class Crawler(object):
                     self.shutdown_event.set()
                     self.fatal_error_happened.set()
                     logging.error('Fatal exception')
+                    if ctx:
+                        logging.error('Exception context:')
+                        for key, val in sorted(ctx.items(), key=lambda x: x[0]):
+                            logging.error(' * %s: %s' % (key, val))
+                    else:
+                        logging.error('Exception context: N/A')
                     logging.error(''.join(format_exception(*exc_info)))
                     if not isinstance(exc_info[1], KeyboardInterrupt):
                         self.log_error(exc_info, ctx)
