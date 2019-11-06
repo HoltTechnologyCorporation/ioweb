@@ -263,7 +263,7 @@ class Urllib3Transport(object):
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
-        chunk_size = 1024
+        chunk_size = 10 * 1024
         bytes_read = 0
         while True:
             chunk = self.urllib3_response.read(chunk_size)
