@@ -17,3 +17,5 @@ dist/
 syntax:regexp
 ^var/
 ^\.git/
+^\.tox/
+^\.coverage$
