@@ -174,6 +174,10 @@ class Urllib3Transport(object):
         options = {}
         headers = req['headers'] or {}
 
+        req_url = req['url']
+        if req_url.endswith('?'):
+            req_url = req['url'][:-1]
+
         #req_url = req['url']
         #if not '://' in req_url:
         #    req_url = 'http://%s' % req_url
@@ -237,7 +241,7 @@ class Urllib3Transport(object):
             #try:
             self.urllib3_response = pool.urlopen(
                 req.method(),
-                req['url'],
+                req_url,
                 headers=headers,
                 # total - set to None to remove this constraint
                 # and fall back on other counts. 
