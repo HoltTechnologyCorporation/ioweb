@@ -115,7 +115,7 @@ class Request(BaseRequest):
 
     def method(self):
         if self.config['method']:
-            return self.config['method']
+            return self.config['method'].upper()
         elif self.config['data']:
             return 'POST'
         else:
