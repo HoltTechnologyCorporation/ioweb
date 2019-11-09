@@ -21,3 +21,8 @@ class Session(object):
         self.transport.request(self.req, res)
         self.transport.prepare_response(self.req, res, None)
         return res
+
+
+def request(*args, **kwargs):
+    sess = Session()
+    return sess.request(*args, **kwargs)
