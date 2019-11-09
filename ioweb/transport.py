@@ -230,15 +230,16 @@ class Urllib3Transport(object):
         with self.handle_network_error(req):
             if req['follow_redirect']:
                 retry_opts = {
+                    'total': req['max_redirects'],
                     'redirect': req['max_redirects'],
                     'raise_on_redirect': True,
                 }
             else:
                 retry_opts = {
+                    'total': False,
                     'redirect': False,
                     'raise_on_redirect': False,
                 }
-            #try:
             self.urllib3_response = pool.urlopen(
                 req.method(),
                 req_url,
@@ -246,7 +247,6 @@ class Urllib3Transport(object):
                 # total - set to None to remove this constraint
                 # and fall back on other counts. 
                 retries=Retry(
-                    total=None,
                     connect=False,
                     read=False,
                     **retry_opts,
@@ -259,11 +259,6 @@ class Urllib3Transport(object):
                 decode_content=req['decode_content'],
                 **options
             )
-            #except UnicodeEncodeError as ex:
-            #    print('ERROR', ex)
-            #    print('URL', req['url'])
-            #    import pdb; pdb.set_trace()
-            #    #raise
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
