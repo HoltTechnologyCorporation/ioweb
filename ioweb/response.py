@@ -28,6 +28,7 @@ class Response(object):
         '_cached',
         'cert',
         'status',
+        'url',
         'error',
         'headers',
         'meta',
@@ -39,6 +40,7 @@ class Response(object):
         self.headers = None
         self.cert = None
         self.status = None
+        self.url = None
         self.error = None
         self.meta = {}
         self._cached_dom = None

@@ -295,6 +295,17 @@ class Urllib3Transport(object):
                 try:
                     res.headers = self.urllib3_response.headers
                     res.status = self.urllib3_response.status
+                    if len(self.urllib3_response.retries.history):
+                        res.url = (
+                            # redirect_location might be None
+                            # if network errors happened during
+                            # processing redirect
+                            self.urllib3_response.retries.history[-1].redirect_location
+                            or
+                            self.urllib3_response.retries.history[-1].url
+                        )
+                    else:
+                        res.url = req['url']
 
                     if hasattr(self.urllib3_response._connection.sock, 'connection'):
                         res.cert = (
