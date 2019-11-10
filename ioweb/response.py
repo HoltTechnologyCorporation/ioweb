@@ -74,7 +74,8 @@ class Response(object):
 
     def dom(self):
         if self._cached_dom is None:
-            res = defusedxml.lxml.parse(BytesIO(self.data), HTMLParser())
+            clean_data = self.data.replace(b'\x00', b'')
+            res = defusedxml.lxml.parse(BytesIO(clean_data), HTMLParser())
             self._cached_dom = res.getroot()
         return self._cached_dom
 
