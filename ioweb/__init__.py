@@ -6,7 +6,7 @@ in setup.py entry point
 """
 __version__ = '0.0.11'
 
-from .session import Session
+from .session import Session, request
 from .request import Request, CallbackRequest
 from .data import Data
 from .response import Response

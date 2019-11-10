@@ -7,6 +7,12 @@ import json
 import logging
 from argparse import ArgumentParser
 from importlib import import_module
+from collections import defaultdict
+from threading import Thread, Event
+from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
+
+from ioweb.stat import Stat
+
 from pythonjsonlogger import jsonlogger
 
 from .crawler import Crawler
@@ -156,8 +162,99 @@ def run_subcommand_crawl(opts):
         sys.exit(0)
 
 
-def run_subcommand_foo(parser, opts):
+def run_subcommand_foo(opts):
     print('COMMAND FOO')
+
+
+def thread_worker(crawler_cls, threads, stat, preg, evt_error, evt_init):
+    counters = defaultdict(int)
+    try:
+        cmd = [
+            'ioweb',
+            'crawl',
+            crawler_cls,
+            '-t%d' % threads,
+            '--logging-format=json',
+            '--stat-logging-format=json'
+        ]
+        proc = Popen(cmd, stdout=PIPE, stderr=STDOUT)
+        preg[proc.pid] = proc
+    finally:
+        evt_init.set()
+    while True:
+        line = proc.stdout.readline()
+        try:
+            obj = json.loads(line.decode('ascii'))
+        except (ValueError, UnicodeDecodeError):
+            uline = line.decode('utf-8', errors='replace')
+            logging.error(
+                '[pid=%d] RAW-MSG: %s',
+                proc.pid, uline.rstrip()
+            )
+        else:
+            msg = obj['message']
+            if 'exc_info' in obj:
+                msg += obj['exc_info']
+            try:
+                msg_obj = json.loads(msg)
+            except ValueError:
+                logging.error('[pid=%d] TEXT-MSG: %s', proc.pid, msg)
+            else:
+                if 'eps' in msg_obj and 'counter' in msg_obj:
+                    for key in msg_obj['eps'].keys():
+                        stat.speed_keys = set(stat.speed_keys) | set([key])
+                    for key, val in msg_obj['counter'].items():
+                        delta = val - counters[key]
+                        counters[key] = val
+                        stat.inc(key, delta)
+                else:
+                    logging.error('[pid=%d] JSON-MSG: %s', proc.pid, msg_obj)
+        ret = proc.poll()
+        if ret is not None:
+            if ret !=0:
+                evt_error.set()
+            break
+
+
+def run_subcommand_multi(opts):
+    setup_logging(
+        logging_format='text',
+        network_logs=True,
+    )
+    stat = Stat()
+
+    pool = []
+    preg = {}
+    evt_error = Event()
+    try:
+        for _ in range(opts.workers):
+            evt_init = Event()
+            th = Thread(
+                target=thread_worker,
+                args=[opts.crawler_cls, opts.threads, stat, preg, evt_error, evt_init]
+            )
+            th.daemon = True
+            th.start()
+            pool.append(th)
+            evt_init.wait()
+        while not evt_error.is_set():
+            num_done = 0
+            for proc in preg.values():
+                try:
+                    proc.wait(timeout=0.1)
+                except TimeoutExpired:
+                    pass
+                else:
+                    num_done += 1
+                if evt_error.is_set():
+                    break
+                if num_done == len(pool):
+                    break
+    finally:
+        for proc in preg.values():
+            print('Finishing process pid=%d' % proc.pid)
+            proc.terminate()
+            proc.wait()
 
 
 def command_ioweb():
@@ -201,11 +298,20 @@ def command_ioweb():
         'foo', help='Just test subcommand',
     )
 
+    # multi
+    multi_subparser = subparsers.add_parser(
+        'multi', help='Run multi instances of crawler',
+    )
+    multi_subparser.add_argument('crawler_cls')
+    multi_subparser.add_argument('-w', '--workers', type=int, default=1)
+    multi_subparser.add_argument('-t', '--threads', type=int, default=1)
+
     opts = parser.parse_args()
     if opts.command == 'crawl':
         run_subcommand_crawl(opts)
+    elif opts.command == 'foo':
+        run_subcommand_foo(opts)
+    elif opts.command == 'multi':
+        run_subcommand_multi(opts)
     else:
-        if opts.command == 'foo':
-            run_subcommand_foo(opts)
-        else:
-            parser.print_help()
+        parser.print_help()
