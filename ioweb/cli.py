@@ -7,6 +7,7 @@ import json
 import logging
 from argparse import ArgumentParser
 from importlib import import_module
+from pythonjsonlogger import jsonlogger
 
 from .crawler import Crawler
 
@@ -64,8 +65,9 @@ def collect_crawlers():
     return reg
 
 
-def setup_logging(network_logs=False):#, control_logs=False):
-    logging.basicConfig(level=logging.DEBUG)
+def setup_logging(logging_format='text', network_logs=False):#, control_logs=False):
+    assert logging_format in ('text', 'json')
+    #logging.basicConfig(level=logging.DEBUG)
     logging.getLogger('urllib3.connectionpool').setLevel(level=logging.ERROR)
     logging.getLogger('urllib3.util.retry').setLevel(level=logging.ERROR)
     logging.getLogger('urllib3.poolmanager').setLevel(level=logging.ERROR)
@@ -74,6 +76,14 @@ def setup_logging(network_logs=False):#, control_logs=False):
         logging.getLogger('ioweb.network_service').propagate = False
     #if not control_logs:
     #    logging.getLogger('crawler.control').propagate = False
+
+    hdl = logging.StreamHandler()
+    logger = logging.getLogger()
+    logger.addHandler(hdl)
+    logger.setLevel(logging.DEBUG)
+    if logging_format == 'json':
+        #for hdl in logging.getLogger().handlers:
+        hdl.setFormatter(jsonlogger.JsonFormatter())
 
 
 def format_elapsed_time(total_sec):
@@ -97,7 +107,10 @@ def get_crawler(crawler_id):
 
 
 def run_subcommand_crawl(opts):
-    setup_logging(network_logs=opts.network_logs)#, control_logs=opts.control_logs)
+    setup_logging(
+        logging_format=opts.logging_format,
+        network_logs=opts.network_logs
+    )#, control_logs=opts.control_logs)
     cls = get_crawler(opts.crawler_id)
     extra_data = {}
     for key in cls.extra_cli_args():
@@ -107,6 +120,8 @@ def run_subcommand_crawl(opts):
         network_threads=opts.network_threads,
         extra_data=extra_data,
         debug=opts.debug,
+        stat_logging=(opts.stat_logging == 'yes'),
+        stat_logging_format=opts.stat_logging_format,
     )
     try:
         if opts.profile:
@@ -168,6 +183,15 @@ def command_ioweb():
     crawl_subparser.add_argument('-n', '--network-logs', action='store_true', default=False)
     crawl_subparser.add_argument('-p', '--profile', action='store_true', default=False)
     crawl_subparser.add_argument('--debug', action='store_true', default=False)
+    crawl_subparser.add_argument(
+        '--stat-logging', choices=['yes', 'no'], default='yes',
+    )
+    crawl_subparser.add_argument(
+        '--stat-logging-format', choices=['text', 'json'], default='text',
+    )
+    crawl_subparser.add_argument(
+        '--logging-format', choices=['text', 'json'], default='text',
+    )
     #parser.add_argument('--control-logs', action='store_true', default=False)
     if crawler_cls:
         crawler_cls.update_arg_parser(crawl_subparser)

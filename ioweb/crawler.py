@@ -43,6 +43,8 @@ class Crawler(object):
             extra_data=None,
             stop_on_handler_error=False,
             debug=False,
+            stat_logging=True,
+            stat_logging_format='text',
         ):
         if extra_data is None:
             self.extra_data = {}
@@ -55,7 +57,11 @@ class Crawler(object):
         self.fatal_error_happened = Event()
         self.network_pause = Pause()
         self.retry_limit = retry_limit
-        self.stat = Stat(speed_keys='crawler:request-processed')
+        self.stat = Stat(
+            speed_keys='crawler:request-processed',
+            logging_enabled=stat_logging,
+            logging_format=stat_logging_format,
+        )
         self.fatalq = Queue()
         self.network = NetworkService(
             self.taskq, self.resultq,

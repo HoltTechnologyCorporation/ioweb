@@ -1,3 +1,4 @@
+import json
 from pprint import pprint, pformat
 from collections import defaultdict, deque
 import time
@@ -29,6 +30,7 @@ class Stat(object):
             speed_keys=None,
             logging_enabled=True,
             logging_interval=3,
+            logging_format='text',
             key_aliases=None,
             # export
             #shard_interval = 10,
@@ -47,6 +49,8 @@ class Stat(object):
         self.logging_enabled = logging_enabled
         # Arg: logging_interval
         self.logging_interval = logging_interval
+        # Arg: logging_format
+        self.logging_format = logging_format
         # Arg: key_aliases
         self.key_aliases = deepcopy(self.default_key_aliases)
         if key_aliases:
@@ -107,17 +111,25 @@ class Stat(object):
         else:
             self.start_export_thread()
 
-    def build_eps_string(self, now):
+    def build_eps_data(self, now, interval):
+        """
+        Args:
+            interval - number of recent seconds for
+            mean value calculation
+        """
         now_int = int(now)
         eps = defaultdict(int)
-        interval = 30
         for ts in range(now_int - interval, now_int):
-            for key in self.speed_keys:
+            for key in sorted(self.speed_keys):
                 try:
                     eps[key] += self.moment_counters[ts][key]
                 except KeyError:
                     eps[key] += 0
+        return eps
 
+    def build_eps_string(self, now):
+        interval=30
+        eps = self.build_eps_data(now, interval)
         ret = []
         for key, val in eps.items():
             label = self.key_aliases.get(key, key)
@@ -127,21 +139,39 @@ class Stat(object):
             ret.append('%s: %s' % (label, val_str))
         return ', '.join(ret)
 
-    def build_counter_string(self):
-        ret = []
-        for key in sorted(list(self.total_counters.keys())):
+    def build_counter_data(self, ignore=True):
+        ret = {}
+        for key in self.total_counters.keys():
             if not key.startswith(self.ignore_prefixes):
-                label = self.key_aliases.get(key, key)
                 val = self.total_counters[key]
-                ret.append('%s: %d' % (label, val))
+                ret[key] = val
+        return ret
+
+    def build_counter_string(self):
+        data = self.build_counter_data()
+        ret = []
+        for key in sorted(list(data.keys())):
+            label = self.key_aliases.get(key, key)
+            val = data[key]
+            ret.append('%s: %d' % (label, val))
         return ', '.join(ret)
+
+    def render_moment_json(self, now):
+        interval = 30
+        return json.dumps({
+            'eps': self.build_eps_data(now, interval),
+            'counter': self.build_counter_data(),
+        })
 
     def render_moment(self, now=None):
         if now is None:
             now = time.time()
-        eps_str = self.build_eps_string(now)
-        counter_str = self.build_counter_string()
-        return 'EPS: %s | TOTAL: %s' % (eps_str, counter_str)
+        if self.logging_format == 'json':
+            return self.render_moment_json(now)
+        else:
+            eps_str = self.build_eps_string(now)
+            counter_str = self.build_counter_string()
+            return 'EPS: %s | TOTAL: %s' % (eps_str, counter_str)
 
     def thread_logging(self):
         try:
