@@ -35,10 +35,16 @@ class Proxy(object):
 
 
 class ProxyList(object):
-    def __init__(self, proxy_type='http'):
+    def __init__(self, proxy_type='http', close_connection=False):
+        """
+        Args:
+            close_connection: if `True` close connection to proxy server
+            after request done
+        """
         self._servers = []
         self._source = None
         self.proxy_type = proxy_type
+        self.close_connection = close_connection
 
     @classmethod
     def create_from_source(cls, src_type, src, **kwargs):

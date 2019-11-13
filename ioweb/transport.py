@@ -116,7 +116,7 @@ class Urllib3Transport(object):
 
 
 
-    def get_pool(self, req):
+    def get_pool(self, req, use_cache=True):
         if req['proxy']:
             if req['proxy_auth']:
                 proxy_headers = make_headers(proxy_basic_auth=req['proxy_auth'])
@@ -124,12 +124,9 @@ class Urllib3Transport(object):
                 proxy_headers = None
             proxy_url = '%s://%s' % (req['proxy_type'], req['proxy'])
             pool_key = (req['proxy_type'], req['proxy'], bool(req['verify']))
-            if pool_key not in self.pools:
+            if not use_cache or pool_key not in self.pools:
                 if req['proxy_type'] == 'socks5':
-                    opts = {
-                        #num_pools=1000,
-                        #maxsize=10,
-                    }
+                    opts = {}
                     if req['verify']:
                         pool = SOCKSProxyManager(
                             proxy_url,
@@ -140,10 +137,7 @@ class Urllib3Transport(object):
                     else:
                         pool = SOCKSProxyManager(proxy_url, **opts)
                 elif req['proxy_type'] == 'http':
-                    opts = {
-                        #num_pools=1000,
-                        #maxsize=10,
-                    }
+                    opts = {}
                     if req['verify']:
                         pool = ProxyManager(
                             proxy_url,
@@ -163,7 +157,8 @@ class Urllib3Transport(object):
                         'Invalid value of request option `proxy_type`: %s'
                         % req['proxy_type']
                     )
-                self.pools[pool_key] = pool
+                if use_cache:
+                    self.pools[pool_key] = pool
             else:
                 pool = self.pools[pool_key]
         else:
@@ -191,7 +186,10 @@ class Urllib3Transport(object):
         #        emsg, error.InvalidUrlError(emsg),
         #    )
 
-        pool = self.get_pool(req)
+        pool = self.get_pool(
+            req,
+            use_cache=(not req['close_connection'])
+        )
 
         self.op_started = time.time()
         if req['resolve']:
@@ -317,4 +315,6 @@ class Urllib3Transport(object):
                         res.error = err
         finally:
             if self.urllib3_response:
+                #if req['close_connection']:
+                #    self.urllib3_response._connection.close()
                 self.urllib3_response.release_conn()

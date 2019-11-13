@@ -169,6 +169,14 @@ class Crawler(object):
                 proxy_auth=proxy.auth(),
                 proxy_type=proxy.proxy_type,
             )
+            # If requst is configured to not close connection (default)
+            # and proxylist requires to close connection
+            # then update request config
+            if (
+                    not req['close_connection']
+                    and self.proxylist.close_connection
+                ):
+                req.setup(close_connection=True)
 
     def setup_request_hook(self, transport, req):
         pass

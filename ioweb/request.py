@@ -86,6 +86,7 @@ class Request(BaseRequest):
         'multipart',
         'verify',
         'method',
+        'close_connection',
     )
 
     def get_default_config(self):
@@ -111,6 +112,7 @@ class Request(BaseRequest):
             'data': None,
             'multipart': False,
             'verify': True,
+            'close_connection': False,
         }
 
     def method(self):
