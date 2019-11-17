@@ -237,7 +237,12 @@ def run_subcommand_multi(opts):
             th.start()
             pool.append(th)
             evt_init.wait()
-        while not evt_error.is_set():
+
+        evt_stop = Event()
+        while (
+                not evt_stop.is_set()
+                and not evt_error.is_set()
+            ):
             num_done = 0
             for proc in preg.values():
                 try:
@@ -249,6 +254,7 @@ def run_subcommand_multi(opts):
                 if evt_error.is_set():
                     break
                 if num_done == len(pool):
+                    evt_stop.set()
                     break
     finally:
         for proc in preg.values():
