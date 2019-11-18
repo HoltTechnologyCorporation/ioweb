@@ -97,15 +97,17 @@ def collect_crawlers():
     return reg
 
 
-def setup_logging(logging_format='text', network_logs=False):#, control_logs=False):
+def setup_logging(logging_format='text', network_logs=False, verbose=False):#, control_logs=False):
     assert logging_format in ('text', 'json')
     #logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger('urllib3.connectionpool').setLevel(level=logging.ERROR)
-    logging.getLogger('urllib3.util.retry').setLevel(level=logging.ERROR)
-    logging.getLogger('urllib3.poolmanager').setLevel(level=logging.ERROR)
-    logging.getLogger('ioweb.urllib3_custom').setLevel(level=logging.ERROR)
-    if not network_logs:
-        logging.getLogger('ioweb.network_service').propagate = False
+    if not verbose:
+        logging.getLogger('urllib3.connectionpool').setLevel(level=logging.ERROR)
+        logging.getLogger('urllib3.util.retry').setLevel(level=logging.ERROR)
+        logging.getLogger('urllib3.poolmanager').setLevel(level=logging.ERROR)
+        logging.getLogger('ioweb.urllib3_custom').setLevel(level=logging.ERROR)
+        logging.getLogger('socks').setLevel(level=logging.INFO)
+        if not network_logs:
+            logging.getLogger('ioweb.network_service').propagate = False
     #if not control_logs:
     #    logging.getLogger('crawler.control').propagate = False
 
@@ -141,7 +143,8 @@ def get_crawler(crawler_id):
 def run_subcommand_crawl(opts):
     setup_logging(
         logging_format=opts.logging_format,
-        network_logs=opts.network_logs
+        network_logs=opts.network_logs,
+        verbose=opts.verbose
     )#, control_logs=opts.control_logs)
     cls = get_crawler(opts.crawler_id)
     extra_data = {}
@@ -332,6 +335,7 @@ def command_ioweb():
     crawl_subparser.add_argument('-n', '--network-logs', action='store_true', default=False)
     crawl_subparser.add_argument('-p', '--profile', action='store_true', default=False)
     crawl_subparser.add_argument('--debug', action='store_true', default=False)
+    crawl_subparser.add_argument('-v', '--verbose', action='store_true', default=False)
     crawl_subparser.add_argument(
         '--stat-logging', choices=['yes', 'no'], default='yes',
     )
