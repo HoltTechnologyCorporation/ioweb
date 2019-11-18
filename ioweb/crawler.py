@@ -98,9 +98,9 @@ class Crawler(object):
     def extra_cli_args(cls):
         return {}
 
-    def load_proxylist(self, pl_type, pl_location, **kwargs):
+    def load_proxylist(self, list_type, list_location, **kwargs):
         self.proxylist = ProxyList.create_from_source(
-            pl_type, pl_location, **kwargs
+            list_type, list_location, **kwargs
         )
 
     def is_dataopq_dump_time(self, name):

@@ -35,7 +35,10 @@ class Proxy(object):
 
 
 class ProxyList(object):
-    def __init__(self, proxy_type='http', close_connection=False):
+    def __init__(
+            self, proxy_type='http', close_connection=False,
+            proxy_user=None, proxy_password=None
+        ):
         """
         Args:
             close_connection: if `True` close connection to proxy server
@@ -45,6 +48,8 @@ class ProxyList(object):
         self._source = None
         self.proxy_type = proxy_type
         self.close_connection = close_connection
+        self.proxy_user = proxy_user
+        self.proxy_password = proxy_password
 
     @classmethod
     def create_from_source(cls, src_type, src, **kwargs):
@@ -93,15 +98,21 @@ class ProxyList(object):
         for line in lines:
             line = line.strip()
             match = RE_PROXYLINE.match(line)
+            # By default use authorization
+            # passed to ProxyList constructor
+            # it is None by default
+            user = self.proxy_user
+            password = self.proxy_password
             if not match:
                 match = RE_PROXYLINE_AUTH.match(line)
                 if not match:
                     logger.error('Invalid proxy line: %s' % line)
                 else:
+                    # Override default user and proxy
+                    # If auth data is provided by proxy line
                     host, port, user, password = match.groups()
             else:
                 host, port = match.groups()
-                user, password = None, None
             port = int(port)
             servers.append(
                 Proxy(

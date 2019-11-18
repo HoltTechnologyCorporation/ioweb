@@ -118,39 +118,39 @@ class Urllib3Transport(object):
 
     def get_pool(self, req, use_cache=True):
         if req['proxy']:
-            if req['proxy_auth']:
-                proxy_headers = make_headers(proxy_basic_auth=req['proxy_auth'])
+            if req['proxy_type'] == 'socks5' and req['proxy_auth']:
+                proxy_url = '%s://%s@%s' % (
+                    req['proxy_type'], req['proxy_auth'], req['proxy']
+                )
             else:
-                proxy_headers = None
-            proxy_url = '%s://%s' % (req['proxy_type'], req['proxy'])
+                proxy_url = '%s://%s' % (req['proxy_type'], req['proxy'])
             pool_key = (req['proxy_type'], req['proxy'], bool(req['verify']))
             if not use_cache or pool_key not in self.pools:
                 if req['proxy_type'] == 'socks5':
-                    opts = {}
                     if req['verify']:
                         pool = SOCKSProxyManager(
                             proxy_url,
                             cert_reqs='CERT_REQUIRED',
                             ca_certs=certifi.where(),
-                            **opts
                         )
                     else:
                         pool = SOCKSProxyManager(proxy_url, **opts)
                 elif req['proxy_type'] == 'http':
-                    opts = {}
+                    if req['proxy_auth']:
+                        proxy_headers = make_headers(proxy_basic_auth=req['proxy_auth'])
+                    else:
+                        proxy_headers = None
                     if req['verify']:
                         pool = ProxyManager(
                             proxy_url,
                             proxy_headers=proxy_headers,
                             cert_reqs='CERT_REQUIRED',
                             ca_certs=certifi.where(),
-                            **opts,
                         )
                     else:
                         pool = ProxyManager(
                             proxy_url,
                             proxy_headers=proxy_headers,
-                            **opts
                         )
                 else:
                     raise IowebConfigError(
