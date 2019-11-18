@@ -137,6 +137,7 @@ class Stat(object):
             if val_str == '0.0' and val > 0:
                 val_str = '0.0+'
             ret.append('%s: %s' % (label, val_str))
+        ret = sorted(ret, key=lambda x: x[0])
         return ', '.join(ret)
 
     def build_counter_data(self, ignore=True):
