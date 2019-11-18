@@ -10,7 +10,9 @@ from importlib import import_module
 from collections import defaultdict
 from threading import Thread, Event
 from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
+import code, traceback, signal
 
+import psutil
 from ioweb.stat import Stat
 
 from pythonjsonlogger import jsonlogger
@@ -18,6 +20,30 @@ from pythonjsonlogger import jsonlogger
 from .crawler import Crawler
 
 logger = logging.getLogger('crawler.cli')
+
+#from pympler import tracker
+#mem_tracker = tracker.SummaryTracker()
+
+def debug_handler(sig, frame):
+    """Interrupt running process, and provide a python prompt for
+    interactive debugging."""
+
+    pass
+    #import gc
+    #from pympler import asizeof
+
+    #objs = gc.get_objects()
+    #mem = asizeof.asizeof(objs)
+    #print('all objects memory: %s' % mem)
+
+    #d={'_frame':frame, 'mem_tracker': mem_tracker}         # Allow access to frame object.
+    #d.update(frame.f_globals)  # Unless shadowed by global
+    #d.update(frame.f_locals)
+
+    #i = code.InteractiveConsole(d)
+    #message  = "Signal received : entering python shell.\nTraceback:\n"
+    #message += ''.join(traceback.format_stack(frame))
+    #i.interact(message)
 
 
 def find_crawlers_in_module(mod, reg):
@@ -238,6 +264,8 @@ def run_subcommand_multi(opts):
             pool.append(th)
             evt_init.wait()
 
+        mem_check_time = time.time()
+
         evt_stop = Event()
         while (
                 not evt_stop.is_set()
@@ -256,6 +284,22 @@ def run_subcommand_multi(opts):
                 if num_done == len(pool):
                     evt_stop.set()
                     break
+
+                if opts.rss_limit:
+                    if time.time() - mem_check_time > 5:
+                        for proc in preg.values():
+                            ps_proc = psutil.Process(proc.pid)
+                            rss_mb = (
+                                ps_proc.memory_info().rss
+                                / (1024.0 * 1024)
+                            )
+                            if rss_mb > opts.rss_limit:
+                                logging.error(
+                                    'Terminating process, pid=%d, rss=%.02f mb, limit=%d mb' % (
+                                        proc.pid, rss_mb, opts.rss_limit
+                                    )
+                                )
+                                proc.terminate()
     finally:
         for proc in preg.values():
             print('Finishing process pid=%d' % proc.pid)
@@ -264,6 +308,8 @@ def run_subcommand_multi(opts):
 
 
 def command_ioweb():
+    #signal.signal(signal.SIGUSR1, debug_handler)
+
     parser = ArgumentParser()#add_help=False)
 
     crawler_cls = None
@@ -311,6 +357,7 @@ def command_ioweb():
     multi_subparser.add_argument('crawler_cls')
     multi_subparser.add_argument('-w', '--workers', type=int, default=1)
     multi_subparser.add_argument('-t', '--threads', type=int, default=1)
+    multi_subparser.add_argument('--rss-limit', type=int)
 
     opts = parser.parse_args()
     if opts.command == 'crawl':
