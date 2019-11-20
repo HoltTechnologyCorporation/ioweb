@@ -84,3 +84,7 @@ class Response(object):
 
     def css(self, query):
         return CssSelector(self.dom()).select(query)
+
+    def save(self, path):
+        with open(path, 'wb') as out:
+            out.write(self.data)
