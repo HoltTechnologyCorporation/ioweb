@@ -25,3 +25,4 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
                 stat and stat.inc('bulk-write-%s-retry' % item_type)
         else:
             break
+    return res
