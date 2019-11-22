@@ -18,7 +18,7 @@ from .util import Pause, debug
 from .network_service import NetworkService
 from .stat import Stat
 from .request import Request, CallbackRequest, BaseRequest
-from .error import get_error_tag, collect_error_context
+from .error import get_error_tag, collect_error_context, DataNotValid
 from .error_logger import ErrorLogger
 from .proxylist import ProxyList
 
@@ -350,12 +350,15 @@ class Crawler(object):
                         )
         except Exception as ex:
             self.stat.inc('result-handler-error:%s' % get_error_tag(ex))
-            if self.stop_on_handler_error:
-                raise
+            if isinstance(ex, DataNotValid):
+                self.process_fail_result(result)
             else:
-                logging.exception('Error in result handler')
-                ctx = collect_error_context(result['request'])
-                self.log_error(sys.exc_info(), ctx)
+                if self.stop_on_handler_error:
+                    raise
+                else:
+                    logging.exception('Error in result handler')
+                    ctx = collect_error_context(result['request'])
+                    self.log_error(sys.exc_info(), ctx)
 
     def process_fail_result(self, result):
         self.stat.inc('crawler:request-fail')
@@ -368,7 +371,7 @@ class Crawler(object):
         if result['response'].status:
             self.stat.inc('http:status-%s' % result['response'].status)
 
-        if req.retry_count + 1 <= self.retry_limit:
+        if req.retry_count + 1 < self.retry_limit:
             self.stat.inc('crawler:request-retry')
             req.retry_count += 1
             req.priority = req.priority - 1
@@ -376,7 +379,7 @@ class Crawler(object):
         else:
             self.stat.inc('crawler:request-rejected')
             name = result['request'].config['name']
-            handler = getattr(self, 'rejected_%s' % name, None)
+            handler = getattr(self, 'rejected_handler_%s' % name, None)
             if handler is None:
                 handler = self.default_rejected_handler
             try:
