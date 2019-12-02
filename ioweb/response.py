@@ -1,6 +1,5 @@
 from io import BytesIO
 from collections import defaultdict
-#from base64 import b64encode
 try:
     import ujson as json
 except ImportError:
@@ -10,8 +9,12 @@ import defusedxml.lxml
 from lxml.etree import HTMLParser
 from selection import XpathSelector
 from cssselect import HTMLTranslator
-
-#from urllib3.contrib import pyopenssl
+try:
+    import selectolax.parser
+except ImportError:
+    SELECTOLAX_IMPORTED = False
+else:
+    SELECTOLAX_IMPORTED = True
 
 
 class CssSelector(XpathSelector):
@@ -25,14 +28,14 @@ class CssSelector(XpathSelector):
 class Response(object):
     __slots__ = (
         '_bytes_body',
-        '_cached',
         'cert',
         'status',
         'url',
         'error',
         'headers',
         'meta',
-        '_cached_dom',
+        '_cached_lxml_dom',
+        '_cached_selectolax_dom',
     )
 
     def __init__(self):
@@ -43,7 +46,8 @@ class Response(object):
         self.url = None
         self.error = None
         self.meta = {}
-        self._cached_dom = None
+        self._cached_lxml_dom = None
+        self._cached_selectolax_dom = None
 
     def write_bytes_body(self, data):
         return self._bytes_body.write(data)
@@ -73,11 +77,11 @@ class Response(object):
             return None
 
     def dom(self):
-        if self._cached_dom is None:
+        if self._cached_lxml_dom is None:
             clean_data = self.data.replace(b'\x00', b'')
             res = defusedxml.lxml.parse(BytesIO(clean_data), HTMLParser())
-            self._cached_dom = res.getroot()
-        return self._cached_dom
+            self._cached_lxml_dom = res.getroot()
+        return self._cached_lxml_dom
 
     def xpath(self, query):
         return XpathSelector(self.dom()).select(query)
@@ -88,3 +92,14 @@ class Response(object):
     def save(self, path):
         with open(path, 'wb') as out:
             out.write(self.data)
+
+    def selectolax(self):
+        if not SELECTOLAX_IMPORTED:
+            # Just raise usual ImportError
+            import selectolax.parser
+        else:
+            if self._cached_selectolax_dom is None:
+                self._cached_selectolax_dom = selectolax.parser.HTMLParser(
+                    self.data.replace(b'\x00', b'')
+                )
+            return self._cached_selectolax_dom
