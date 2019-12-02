@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import traceback
 import sys
 from urllib.parse import urlencode
+import ssl
 
 from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
@@ -57,6 +58,8 @@ class Urllib3Transport(object):
         except exceptions.SSLError as ex:
             raise error.ConnectError(str(ex), ex)
         except OpenSSL.SSL.Error as ex:
+            raise error.ConnectError(str(ex), ex)
+        except ssl.SSLError as ex:
             raise error.ConnectError(str(ex), ex)
         except exceptions.LocationParseError as ex:
             raise error.MalformedResponseError(str(ex), ex)
