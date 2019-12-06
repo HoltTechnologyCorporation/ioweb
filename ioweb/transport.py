@@ -45,7 +45,10 @@ class Urllib3Transport(object):
             cert_reqs='CERT_REQUIRED',
             ca_certs=certifi.where(),
         )
-        self.pools[(None, None, False)] = CustomPoolManager()
+        self.pools[(None, None, False)] = CustomPoolManager(
+            cert_reqs='CERT_NONE',
+            #assert_hostname=False,
+        )
         self.urllib3_response = None
 
     def prepare_request(self, req, res):
