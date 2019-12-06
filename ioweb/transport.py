@@ -29,9 +29,15 @@ class Urllib3Transport(object):
         'urllib3_response',
         'op_started',
         'pools',
+        'prepare_response_hook',
     )
 
-    def __init__(self, pools=None):
+    def __init__(
+            self,
+            pools=None,
+            prepare_response_hook=None,
+        ):
+        self.prepare_response_hook = prepare_response_hook
         if pools is None:
             pools = {}
         self.pools = {}
@@ -309,8 +315,14 @@ class Urllib3Transport(object):
                             .get_peer_cert_chain()
                         )
 
+                    if self.prepare_response_hook:
+                        self.prepare_response_hook(
+                            self, req, res, self.urllib3_response
+                        )
+
                     with self.handle_network_error(req):
                         self.read_with_timeout(req, res)
+
                 except error.NetworkError as ex:
                     if raise_network_error:
                         raise

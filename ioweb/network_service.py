@@ -33,7 +33,8 @@ class NetworkService(object):
             shutdown_event=None,
             pause=None,
             setup_request_hook=None,
-            setup_request_proxy=None,
+            prepare_response_hook=None,
+            setup_request_proxy_hook=None,
             stat=None,
         ):
         # Input arguments
@@ -47,7 +48,9 @@ class NetworkService(object):
         self.shutdown_event = shutdown_event
         self.pause = pause
         self.setup_request_hook = setup_request_hook
-        self.setup_request_proxy = setup_request_proxy
+        self.prepare_response_hook = prepare_response_hook
+        self.setup_request_proxy_hook = setup_request_proxy_hook
+        self.setup_request_proxy_hook = setup_request_proxy_hook
         self.stat = stat
         # Init logic
         self.idle_handlers = set()
@@ -60,6 +63,7 @@ class NetworkService(object):
             self.registry[ref] = {
                 'transport': Urllib3Transport(
                     #pools=self.pools,
+                    prepare_response_hook=self.prepare_response_hook
                 ),
                 'request': None,
                 'response': None,
@@ -114,8 +118,8 @@ class NetworkService(object):
         if self.setup_request_hook:
             self.setup_request_hook(transport, req)
 
-        if self.setup_request_proxy:
-            self.setup_request_proxy(transport, req)
+        if self.setup_request_proxy_hook:
+            self.setup_request_proxy_hook(transport, req)
 
         gevent.spawn(
             self.thread_network,

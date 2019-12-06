@@ -70,7 +70,8 @@ class Crawler(object):
             shutdown_event=self.shutdown_event,
             pause=self.network_pause,
             setup_request_hook=self.setup_request_hook,
-            setup_request_proxy=self.setup_request_proxy,
+            setup_request_proxy_hook=self.setup_request_proxy_hook,
+            prepare_response_hook=self.prepare_response_hook,
             stat=self.stat,
         )
         self.result_workers = result_workers
@@ -161,7 +162,10 @@ class Crawler(object):
     def init_hook(self):
         pass
 
-    def setup_request_proxy(self, transport, req):
+    def prepare_response_hook(self, transport, req, res, urllib3_response):
+        pass
+
+    def setup_request_proxy_hook(self, transport, req):
         if self.proxylist:
             proxy = self.proxylist.random_server()
             req.setup(
