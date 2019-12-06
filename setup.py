@@ -40,6 +40,7 @@ setup(
         'cssselect',
         'python-json-logger',
         'psutil',
+        'defusedxml',
     ],
     keywords='web scraping network crawling cralwer spider pycurl',
     classifiers = [
