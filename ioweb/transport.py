@@ -81,7 +81,16 @@ class Urllib3Transport(object):
         except exceptions.ProxyError as ex:
             raise error.ProxyError(str(ex), ex)
         except exceptions.MaxRetryError as ex:
-            raise error.TooManyRedirects(str(ex), ex)
+            # Might be raised by multiple reasons
+            # So we just raise original error and process it
+            # with `self.handle_network_error()` once again
+            with self.handle_network_error(req):
+                raise ex.reason
+        except exceptions.ResponseError as ex:
+            if 'too many redirects' in str(ex):
+                raise error.TooManyRedirectsError(str(ex), ex)
+            else:
+                raise
         except AttributeError:
             # See https://github.com/urllib3/urllib3/issues/1556
             etype, evalue, tb = sys.exc_info()
@@ -238,29 +247,29 @@ class Urllib3Transport(object):
             headers['Content-Length'] = len(options['body'])
 
         with self.handle_network_error(req):
+            retry_opts = {
+                # total - set to None to remove this constraint
+                # and fall back on other counts. 
+                'connect': False,
+                'read': False,
+            }
             if req['follow_redirect']:
-                retry_opts = {
+                retry_opts.update({
                     'total': req['max_redirects'],
                     'redirect': req['max_redirects'],
                     'raise_on_redirect': True,
-                }
+                })
             else:
-                retry_opts = {
+                retry_opts.update({
                     'total': False,
                     'redirect': False,
                     'raise_on_redirect': False,
-                }
+                })
             self.urllib3_response = pool.urlopen(
                 req.method(),
                 req_url,
                 headers=headers,
-                # total - set to None to remove this constraint
-                # and fall back on other counts. 
-                retries=Retry(
-                    connect=False,
-                    read=False,
-                    **retry_opts,
-                ),
+                retries=Retry(**retry_opts),
                 timeout=Timeout(
                     connect=req['connect_timeout'],
                     read=req['timeout'],
