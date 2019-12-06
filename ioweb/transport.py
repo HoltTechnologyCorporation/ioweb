@@ -6,12 +6,13 @@ import traceback
 import sys
 from urllib.parse import urlencode
 import ssl
+import re
 
 from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
 from urllib3.util.timeout import Timeout
 from urllib3 import exceptions, ProxyManager, make_headers
-from  urllib3.contrib import pyopenssl
+from urllib3.contrib import pyopenssl
 from urllib3.contrib.socks import SOCKSProxyManager
 import urllib3
 import OpenSSL.SSL
@@ -22,6 +23,12 @@ from .urllib3_custom import CustomPoolManager
 
 urllib3.disable_warnings(exceptions.InsecureRequestWarning)
 pyopenssl.inject_into_urllib3()
+
+# Fix processing urls which end with "?"
+urllib3_ver = tuple(int(x) for x in urllib3.__version__.split('.'))
+if urllib3_ver <= (1, 25, 6): 
+    import urllib3.util.url
+    urllib3.util.url.TARGET_RE = re.compile(r"^(/[^?]*)(?:\?([^#]*))?(?:#(.*))?$")
 
 
 class Urllib3Transport(object):
@@ -105,6 +112,17 @@ class Urllib3Transport(object):
                     break
             if found:
                 raise error.MalformedResponseError('Invalid redirect header')
+            else:
+                raise
+        except UnicodeError as ex:
+            etype, evalue, tb = sys.exc_info()
+            frames = traceback.extract_tb(tb)
+            #    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+            #UnicodeError: encoding with 'idna' codec failed (UnicodeError: label empty or too long)
+            if "encoding with 'idna' codec failed" in str(ex):
+                raise error.InvalidUrlError(
+                    'Fail to process redirect from %s' % req.config.get('url')
+                )
             else:
                 raise
         except UnicodeEncodeError as ex:
