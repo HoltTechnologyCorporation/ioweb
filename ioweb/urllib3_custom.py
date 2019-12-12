@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 class CustomHttpConnection(HTTPConnection, object):
     def __init__(self, *args, **kwargs):
         self._custom_ip = kwargs.pop('custom_ip', None)
+        self._dns_host_original = None
         super(CustomHttpConnection, self).__init__(*args, **kwargs)
 
     @property
@@ -44,6 +45,7 @@ class CustomHttpConnection(HTTPConnection, object):
 class CustomHttpsConnection(HTTPSConnection, object):
     def __init__(self, *args, **kwargs):
         self._custom_ip = kwargs.pop('custom_ip', None)
+        self._dns_host_original = None
         super(CustomHttpsConnection, self).__init__(*args, **kwargs)
 
     @property
