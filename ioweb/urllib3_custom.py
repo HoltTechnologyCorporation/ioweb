@@ -24,6 +24,15 @@ class CustomHttpConnection(HTTPConnection, object):
         super(CustomHttpConnection, self).__init__(*args, **kwargs)
 
     @property
+    def host(self):
+        return self._dns_host_original
+
+    @host.setter
+    def host(self, val):
+        self._dns_host_original = val
+        self._dns_host = val
+
+    @property
     def _dns_host(self):
         return self._custom_ip if self._custom_ip else self._dns_host_value
 
@@ -36,6 +45,15 @@ class CustomHttpsConnection(HTTPSConnection, object):
     def __init__(self, *args, **kwargs):
         self._custom_ip = kwargs.pop('custom_ip', None)
         super(CustomHttpsConnection, self).__init__(*args, **kwargs)
+
+    @property
+    def host(self):
+        return self._dns_host_original
+
+    @host.setter
+    def host(self, val):
+        self._dns_host_original = val
+        self._dns_host = val
 
     @property
     def _dns_host(self):

@@ -141,6 +141,7 @@ def get_crawler(crawler_id):
 
 
 def run_subcommand_crawl(opts):
+    #logging.basicConfig(level=logging.DEBUG)
     setup_logging(
         logging_format=opts.logging_format,
         network_logs=opts.network_logs,
