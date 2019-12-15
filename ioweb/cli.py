@@ -99,6 +99,10 @@ def collect_crawlers():
 
 def setup_logging(logging_format='text', network_logs=False, verbose=False):#, control_logs=False):
     assert logging_format in ('text', 'json')
+
+    root_logger = logging.getLogger()
+    while root_logger.handlers:
+        root_logger.handlers.pop()
     #logging.basicConfig(level=logging.DEBUG)
     if not verbose:
         logging.getLogger('urllib3.connectionpool').setLevel(level=logging.ERROR)
