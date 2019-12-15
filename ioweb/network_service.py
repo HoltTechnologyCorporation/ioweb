@@ -6,10 +6,21 @@ from collections import deque
 from threading import Thread
 from uuid import uuid4
 import traceback
+from contextlib import contextmanager
 
 from urllib3 import PoolManager
-import gevent
-from gevent import Timeout
+# This is only part of ioweb where I use gevent
+# explicitly. My idea is be able to run ioweb
+# on native thread also.
+# If ioweb is started in threaded mode then
+# just use Dummy Timeout class
+try:
+    from gevent import Timeout
+except ImportError:
+    @contextmanager
+    def Timeout(*args, **kwargs):
+        yield
+
 
 from .transport import Urllib3Transport
 from .util import debug
@@ -121,13 +132,19 @@ class NetworkService(object):
         if self.setup_request_proxy_hook:
             self.setup_request_proxy_hook(transport, req)
 
-        gevent.spawn(
-            self.thread_network,
-            ref,
-            transport,
-            req,
-            res
+        #gevent.spawn(
+        #    self.thread_network,
+        #    ref,
+        #    transport,
+        #    req,
+        #    res
+        #)
+        th = Thread(
+            target=self.thread_network,
+            args=[ref, transport, req, res]
         )
+        th.daemon = True
+        th.start()
 
     def log_network_request(self, req):
         if isinstance(req, Request):
