@@ -338,8 +338,11 @@ class Urllib3Transport(object):
                         )
                     else:
                         res.url = req['url']
-
-                    if hasattr(self.urllib3_response._connection.sock, 'connection'):
+                        
+                    if (
+                            req['extract_cert']
+                            and self.urllib3_response._connection.sock
+                        ):
                         res.cert = (
                             self.urllib3_response._connection.sock.connection
                             .get_peer_cert_chain()

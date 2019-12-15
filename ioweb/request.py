@@ -87,6 +87,7 @@ class Request(BaseRequest):
         'verify',
         'method',
         'close_connection',
+        'extract_cert',
     )
 
     def get_default_config(self):
@@ -113,6 +114,7 @@ class Request(BaseRequest):
             'multipart': False,
             'verify': True,
             'close_connection': False,
+            'extract_cert': False,
         }
 
     def method(self):

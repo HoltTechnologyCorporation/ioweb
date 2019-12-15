@@ -67,13 +67,11 @@ class NetworkService(object):
         self.idle_handlers = set()
         self.active_handlers = set()
         self.registry = {}
-        self.pools = {}
         for _ in range(threads):
             ref = object()
             self.idle_handlers.add(ref)
             self.registry[ref] = {
                 'transport': Urllib3Transport(
-                    #pools=self.pools,
                     prepare_response_hook=self.prepare_response_hook
                 ),
                 'request': None,
