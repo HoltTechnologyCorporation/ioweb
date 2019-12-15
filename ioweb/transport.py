@@ -7,6 +7,7 @@ import sys
 from urllib.parse import urlencode
 import ssl
 import re
+from functools import partial
 
 from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
@@ -41,22 +42,27 @@ class Urllib3Transport(object):
 
     def __init__(
             self,
-            pools=None,
             prepare_response_hook=None,
+            num_pools=10,
+            pool_size=1,
         ):
         self.prepare_response_hook = prepare_response_hook
-        if pools is None:
-            pools = {}
-        self.pools = {}
-        self.pools[(None, None, True)] = CustomPoolManager(
-            cert_reqs='CERT_REQUIRED',
-            ca_certs=certifi.where(),
-        )
-        self.pools[(None, None, False)] = CustomPoolManager(
-            cert_reqs='CERT_NONE',
-            #assert_hostname=False,
-        )
         self.urllib3_response = None
+        self.pools = {
+            (None, None, True): CustomPoolManager(
+                cert_reqs='CERT_REQUIRED',
+                ca_certs=certifi.where(),
+                num_pools=num_pools,
+                maxsize=pool_size,
+            ),
+            (None, None, False): CustomPoolManager(
+                cert_reqs='CERT_NONE',
+                num_pools=num_pools,
+                maxsize=pool_size,
+            ),
+        }
+
+
 
     def prepare_request(self, req, res):
         pass
@@ -299,25 +305,30 @@ class Urllib3Transport(object):
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
-        chunk_size = 10 * 1024
+        chunk_size = (2**16)#10 * 1024
         bytes_read = 0
-        while True:
-            chunk = self.urllib3_response.read(chunk_size)
-            if chunk:
-                if read_limit:
-                    chunk_limit = min(len(chunk), read_limit - bytes_read)
+        chunks = []
+        try:
+            while True:
+                chunk = self.urllib3_response.read(chunk_size)
+                if chunk:
+                    if read_limit:
+                        chunk_limit = min(len(chunk), read_limit - bytes_read)
+                    else:
+                        chunk_limit = len(chunk)
+                    #res._bytes_body.write(chunk[:chunk_limit])
+                    chunks.append(chunk[:chunk_limit])
+                    bytes_read += chunk_limit
+                    if read_limit and bytes_read >= read_limit:
+                        break
                 else:
-                    chunk_limit = len(chunk)
-                res._bytes_body.write(chunk[:chunk_limit])
-                bytes_read += chunk_limit
-                if read_limit and bytes_read >= read_limit:
                     break
-            else:
-                break
-            if time.time() - self.op_started > req['timeout']:
-                raise error.OperationTimeoutError(
-                    'Timed out while reading response',
-                )
+                if time.time() - self.op_started > req['timeout']:
+                    raise error.OperationTimeoutError(
+                        'Timed out while reading response',
+                    )
+        finally:
+            res._bytes_body = b''.join(chunks)
 
     def prepare_response(self, req, res, err, raise_network_error=True):
         try:

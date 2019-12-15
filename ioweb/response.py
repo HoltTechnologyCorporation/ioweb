@@ -6,7 +6,7 @@ except ImportError:
     import json
 
 import defusedxml.lxml
-from lxml.etree import HTMLParser
+import lxml.etree
 from selection import XpathSelector
 from cssselect import HTMLTranslator
 try:
@@ -39,7 +39,7 @@ class Response(object):
     )
 
     def __init__(self):
-        self._bytes_body = BytesIO()
+        self._bytes_body = None#BytesIO()
         self.headers = None
         self.cert = None
         self.status = None
@@ -62,7 +62,7 @@ class Response(object):
 
     @property
     def bytes_body(self):
-        return self._bytes_body.getvalue()
+        return self._bytes_body#.getvalue()
 
     @property
     def json(self):
@@ -79,7 +79,10 @@ class Response(object):
     def dom(self):
         if self._cached_lxml_dom is None:
             clean_data = self.data.replace(b'\x00', b'')
-            res = defusedxml.lxml.parse(BytesIO(clean_data), HTMLParser())
+            res = defusedxml.lxml.parse(
+                BytesIO(clean_data),
+                lxml.etree.HTMLParser()
+            )
             self._cached_lxml_dom = res.getroot()
         return self._cached_lxml_dom
 
