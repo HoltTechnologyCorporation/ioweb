@@ -1,3 +1,6 @@
+#from collections import defaultdict
+
+from pymongo import UpdateOne
 from pymongo.errors import BulkWriteError
 
 
@@ -26,3 +29,26 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
         else:
             break
     return res
+
+
+class BulkWriter(object):
+    def __init__(self, db, item_type, bulk_size=100, stat=None, retries=3):
+        self.db = db
+        self.item_type = item_type
+        self.stat = stat
+        self.retries = retries
+        self.bulk_size = bulk_size
+        self.ops = []
+
+    def _write_ops(self):
+        bulk_write(self.db, self.item_type, self.ops, self.stat)
+        self.ops = []
+
+    def update_one(self, *args, **kwargs):
+        self.ops.append(UpdateOne(*args, **kwargs))
+        if len(self.ops) >= self.bulk_size:
+            self._write_ops()
+
+    def flush(self):
+        if len(self.ops):
+            self._write_ops()
