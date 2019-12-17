@@ -365,9 +365,15 @@ class Urllib3Transport(object):
                         )
 
                     with self.handle_network_error(req):
-                        self.read_with_timeout(req, res)
+                        try:
+                            self.read_with_timeout(req, res)
+                        except MemoryError as ex:
+                            raise error.MalformedResponseError(
+                                'Could not decompress response content',
+                                ex
+                            )
 
-                except error.NetworkError as ex:
+                except (error.NetworkError, error.MalformedResponseError) as ex:
                     if raise_network_error:
                         raise
                     else:

@@ -83,6 +83,7 @@ class TooManyRedirects(NetworkError):
 class MalformedResponseError(NetworkError):
     """
     Raised when parser fails to parse response HTTP headers
+    or to uncompress response content
     """
 
 
