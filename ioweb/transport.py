@@ -305,7 +305,9 @@ class Urllib3Transport(object):
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
-        chunk_size = (2**16)#10 * 1024
+        if read_limit:
+            read_limit = int(read_limit)
+        chunk_size = (2**16) # = 65536
         bytes_read = 0
         chunks = []
         try:
@@ -316,7 +318,6 @@ class Urllib3Transport(object):
                         chunk_limit = min(len(chunk), read_limit - bytes_read)
                     else:
                         chunk_limit = len(chunk)
-                    #res._bytes_body.write(chunk[:chunk_limit])
                     chunks.append(chunk[:chunk_limit])
                     bytes_read += chunk_limit
                     if read_limit and bytes_read >= read_limit:
