@@ -58,7 +58,7 @@ class Response(object):
 
     @property
     def text(self):
-        return self.data.decode('utf-8')
+        return self.data.decode('utf-8', errors='ignore')
 
     @property
     def bytes_body(self):
