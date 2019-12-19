@@ -198,7 +198,7 @@ class Urllib3Transport(object):
                             proxy_headers=proxy_headers,
                         )
                 else:
-                    raise IowebConfigError(
+                    raise error.IowebConfigError(
                         'Invalid value of request option `proxy_type`: %s'
                         % req['proxy_type']
                     )
@@ -264,7 +264,7 @@ class Urllib3Transport(object):
             elif isinstance(req['data'], str):
                 options['body'] = req['data'].encode('utf-8')
             else:
-                raise IowebConfigError(
+                raise error.IowebConfigError(
                     'Invalid type of request data option: %s'
                     % type(req['data'])
                 )
