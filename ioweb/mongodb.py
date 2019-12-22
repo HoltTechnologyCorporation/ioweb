@@ -1,3 +1,5 @@
+from pprint import pprint
+import time
 #from collections import defaultdict
 
 from pymongo import UpdateOne
@@ -53,3 +55,39 @@ class BulkWriter(object):
     def flush(self):
         if len(self.ops):
             self._write_ops()
+
+
+def iterate_collection(
+        db, item_type, query, sort_field, iter_chunk=1000,
+        fields=None,
+        infinite=False
+    ):
+    """
+    Iterate over `db[item_type]` collection items matching `query`
+    sorted by `sort_field`.
+
+    Intenally, it fetches chunk of `iter_chunk` items at once and
+    iterates over it. Then fetch next chunk.
+    """
+    recent_id = None
+    while True:
+        if recent_id:
+            query['username'] = {'$gt': recent_id}
+        items = list(db[item_type].find(
+            query, fields, sort=[(sort_field, 1)], limit=iter_chunk
+        ))
+        if not items:
+            if infinite:
+                sleep_time = 5
+                logging.debug(
+                    'No items to process. Sleeping %d seconds'
+                    % sleep_time
+                )
+                time.sleep(sleep_time)
+                recent_id = None
+            else:
+                return
+        else:
+            for item in items:
+                yield item
+                recent_id = item[sort_field]
