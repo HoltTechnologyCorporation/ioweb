@@ -19,7 +19,8 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
         stat - instance of `ioweb.stat:Stat`
         retries - number of retries
     """
-    stat and stat.inc('bulk-write-%s' % item_type)
+    if stat:
+        stat.inc('bulk-write-%s' % item_type)
     for retry in range(retries):
         try:
             res = db[item_type].bulk_write(ops, ordered=False)
@@ -27,9 +28,18 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
             if retry == (retries - 1):
                 raise
             else:
-                stat and stat.inc('bulk-write-%s-retry' % item_type)
+                if stat:
+                    stat.inc('bulk-write-%s-retry' % item_type)
         else:
-            stat and stat.inc('bulk-write-%s-upsert' % item_type)
+            if stat:
+                stat.inc(
+                    'bulk-write-%s-upsert' % item_type,
+                    res.bulk_api_result['nUpserted']
+                )
+                stat.inc(
+                    'bulk-write-%s-change' % item_type,
+                    res.bulk_api_result['nModified']
+                )
             break
     return res
 
@@ -59,8 +69,7 @@ class BulkWriter(object):
 
 def iterate_collection(
         db, item_type, query, sort_field, iter_chunk=1000,
-        fields=None,
-        infinite=False
+        fields=None, infinite=False, limit=None
     ):
     """
     Iterate over `db[item_type]` collection items matching `query`
@@ -70,9 +79,10 @@ def iterate_collection(
     iterates over it. Then fetch next chunk.
     """
     recent_id = None
+    count = 0
     while True:
         if recent_id:
-            query['username'] = {'$gt': recent_id}
+            query[sort_field] = {'$gt': recent_id}
         items = list(db[item_type].find(
             query, fields, sort=[(sort_field, 1)], limit=iter_chunk
         ))
@@ -91,3 +101,6 @@ def iterate_collection(
             for item in items:
                 yield item
                 recent_id = item[sort_field]
+                count += 1
+                if limit and count >= limit:
+                    return
