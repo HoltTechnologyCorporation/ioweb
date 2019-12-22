@@ -3,7 +3,8 @@ import sys
 import re
 import time
 import os.path
-import json
+#import json
+from bson import json_util as json
 import logging
 from argparse import ArgumentParser
 from importlib import import_module
@@ -162,6 +163,10 @@ def run_subcommand_crawl(opts):
         debug=opts.debug,
         stat_logging=(opts.stat_logging == 'yes'),
         stat_logging_format=opts.stat_logging_format,
+        master_taskq=(
+            json.loads(opts.master_taskq)
+            if opts.master_taskq else None
+        ),
     )
     try:
         if opts.profile:
@@ -182,34 +187,50 @@ def run_subcommand_crawl(opts):
         else:
             bot.run()
     except KeyboardInterrupt:
+        logging.debug('Got INT signal')
         bot.fatal_error_happened.set()
-    print('Stats:')
+    logging.debug('Stats:')
     for key, val in sorted(bot.stat.total_counters.items()):
-        print(' * %s: %s' % (key, val))
+        logging.debug(' * %s: %s' % (key, val))
     if bot._run_started:
-        print('Elapsed: %s' % format_elapsed_time(time.time() - bot._run_started))
+        logging.debug('Elapsed: %s' % format_elapsed_time(time.time() - bot._run_started))
     else:
-        print('Elapsed: NA')
+        logging.debug('Elapsed: NA')
     if bot.fatal_error_happened.is_set():
         sys.exit(1)
     else:
         sys.exit(0)
 
 
-def run_subcommand_foo(opts):
-    print('COMMAND FOO')
+def get_master_taskq_id(crawler_id):
+    return 'ioweb_taskq_%s' % crawler_id.lower()
 
 
-def thread_worker(crawler_cls, threads, stat, preg, evt_error, evt_init):
+def thread_worker(
+        crawler_id, threads, stat, preg,
+        evt_error, evt_init,
+        master_taskq=False,
+    ):
     counters = defaultdict(int)
     try:
+        if master_taskq:
+            taskq_id = get_master_taskq_id(crawler_id)
+            master_taskq_cfg = json.dumps({
+                'backend': 'redis',
+                'taskq_id': taskq_id,
+                'db': 13,
+            })
+        else:
+            master_taskq_cfg = ''
+
         cmd = [
             'ioweb',
             'crawl',
-            crawler_cls,
+            crawler_id,
             '-t%d' % threads,
             '--logging-format=json',
-            '--stat-logging-format=json'
+            '--stat-logging-format=json',
+            '--master-taskq=%s' % master_taskq_cfg,
         ]
         proc = Popen(cmd, stdout=PIPE, stderr=STDOUT)
         preg[proc.pid] = proc
@@ -250,6 +271,37 @@ def thread_worker(crawler_cls, threads, stat, preg, evt_error, evt_init):
             break
 
 
+def thread_task_gen(crawler_id, workers, evt_error):
+    try:
+        from redis import Redis
+        rdb = Redis(db=13)
+        taskq_id = get_master_taskq_id(crawler_id)
+        cls = get_crawler(crawler_id)
+        bot = cls(stat_logging=False)
+        try:
+            tgen_iter = iter(bot.task_generator())
+        except TypeError:
+            return
+        else:
+            try:
+                taskq_cap = workers * bot.taskq_size_limit
+                for task in tgen_iter:
+                    while True:
+                        if rdb.llen(taskq_id) < taskq_cap:
+                            break
+                        else:
+                            time.sleep(0.01)
+                    rdb.rpush(taskq_id, json.dumps(task.as_data()))
+            finally:
+                for _ in range(workers):
+                    rdb.rpush(taskq_id, json.dumps({
+                        '$op': 'shutdown',
+                    }))
+    except Exception:
+        logging.exception('Error in thread_task_gen')
+        evt_error.set()
+
+
 def run_subcommand_multi(opts):
     setup_logging(
         logging_format='text',
@@ -260,12 +312,28 @@ def run_subcommand_multi(opts):
     pool = []
     preg = {}
     evt_error = Event()
+    evt_stop = Event()
     try:
+        if opts.master_taskq:
+            th_task_gen = Thread(
+                target=thread_task_gen,
+                args=[opts.crawler_id, opts.workers, evt_error],
+            )
+            th_task_gen.daemon = True
+            th_task_gen.start()
+
         for _ in range(opts.workers):
             evt_init = Event()
             th = Thread(
                 target=thread_worker,
-                args=[opts.crawler_cls, opts.threads, stat, preg, evt_error, evt_init]
+                args=[
+                    opts.crawler_id,
+                    opts.threads,
+                    stat, preg, evt_error, evt_init,
+                ],
+                kwargs={
+                    'master_taskq': opts.master_taskq,
+                },
             )
             th.daemon = True
             th.start()
@@ -274,7 +342,6 @@ def run_subcommand_multi(opts):
 
         mem_check_time = time.time()
 
-        evt_stop = Event()
         while (
                 not evt_stop.is_set()
                 and not evt_error.is_set()
@@ -310,7 +377,7 @@ def run_subcommand_multi(opts):
                                 proc.terminate()
     finally:
         for proc in preg.values():
-            print('Finishing process pid=%d' % proc.pid)
+            logging.debug('[!] Finishing crawler subprocess, pid=%d' % proc.pid)
             proc.terminate()
             proc.wait()
 
@@ -351,28 +418,34 @@ def command_ioweb():
         '--logging-format', choices=['text', 'json'], default='text',
     )
     #parser.add_argument('--control-logs', action='store_true', default=False)
+    crawl_subparser.add_argument(
+        '--master-taskq', type=str
+    )
     if crawler_cls:
         crawler_cls.update_arg_parser(crawl_subparser)
-
-    # Foo
-    foo_subparser = subparsers.add_parser(
-        'foo', help='Just test subcommand',
-    )
 
     # multi
     multi_subparser = subparsers.add_parser(
         'multi', help='Run multi instances of crawler',
     )
-    multi_subparser.add_argument('crawler_cls')
-    multi_subparser.add_argument('-w', '--workers', type=int, default=1)
-    multi_subparser.add_argument('-t', '--threads', type=int, default=1)
+    multi_subparser.add_argument('crawler_id')
+    multi_subparser.add_argument(
+        '-w', '--workers', type=int, default=1,
+        help='Number of crawler processes to spawn',
+    )
+    multi_subparser.add_argument(
+        '-t', '--threads', type=int, default=1,
+        help='Number of thread in each crawler process',
+    )
+    multi_subparser.add_argument(
+        '--master-taskq', action='store_true', default=False,
+        help='Serve tasks from parent process',
+    )
     multi_subparser.add_argument('--rss-limit', type=int)
 
     opts = parser.parse_args()
     if opts.command == 'crawl':
         run_subcommand_crawl(opts)
-    elif opts.command == 'foo':
-        run_subcommand_foo(opts)
     elif opts.command == 'multi':
         run_subcommand_multi(opts)
     else:

@@ -5,7 +5,8 @@ from threading import Event, Thread, Lock
 from queue import Queue, PriorityQueue, Empty, Full
 from urllib.parse import urlsplit 
 import re
-import json
+#import json
+from bson import json_util as json
 from urllib.request import urlopen
 from traceback import format_exception
 from collections import defaultdict
@@ -18,7 +19,10 @@ from .util import Pause, debug
 from .network_service import NetworkService
 from .stat import Stat
 from .request import Request, CallbackRequest, BaseRequest
-from .error import get_error_tag, collect_error_context, DataNotValid
+from .error import (
+    get_error_tag, collect_error_context, DataNotValid,
+    IowebConfigError
+)
 from .error_logger import ErrorLogger
 from .proxylist import ProxyList
 
@@ -39,12 +43,14 @@ class Crawler(object):
     def __init__(self,
             network_threads=3,
             result_workers=4,
+            num_task_generators=1,
             retry_limit=3,
             extra_data=None,
             stop_on_handler_error=False,
             debug=False,
             stat_logging=True,
             stat_logging_format='text',
+            master_taskq=None
         ):
         if extra_data is None:
             self.extra_data = {}
@@ -87,6 +93,8 @@ class Crawler(object):
         self.stop_on_handler_error = stop_on_handler_error
         self.proxylist = None
         self.debug = debug
+        self.num_task_generators = num_task_generators
+        self.master_taskq_cfg = master_taskq
 
         self.init_hook()
 
@@ -192,10 +200,50 @@ class Crawler(object):
     def submit_task_hook(self, req):
         pass
 
+    def task_generator_master(self):
+        cfg = self.master_taskq_cfg
+        if not cfg:
+            raise IowebConfigError('Master task queue is not configured')
+        backend_id = cfg.pop('backend', None)
+        if backend_id not in ('redis',):
+            raise IowebConfigError(
+                'Invalid master task queue backend: %s' % backend_id
+            )
+        # Redis specific things
+        # TODO: move into backend class
+        taskq_id = cfg.pop('taskq_id', None)
+        if not taskq_id:
+            raise IowebConfigError(
+                'Invalid queue ID: %s' % taskq_id
+            )
+        from redis import Redis
+        rdb = Redis(decode_responses=True, **cfg)
+        DONE = False
+        while True:
+            task = rdb.lpop(taskq_id)
+            if task is None:
+                time.sleep(0.01)
+            else:
+                task = json.loads(task)
+                if '$op' in task:
+                    if task['$op'] == 'shutdown':
+                        return
+                    else:
+                        raise IowebConfigError(
+                            'Got invalid $op from master taskq queue: %s'
+                            % task['$op']
+                        )
+                else:
+                    req = Request.from_data(task)
+                    yield req
+
     def thread_task_generator(self):
         try:
             try:
-                tgen_iter = iter(self.task_generator())
+                if self.master_taskq_cfg:
+                    tgen_iter = self.task_generator_master()
+                else:
+                    tgen_iter = iter(self.task_generator())
             except TypeError:
                 return
             else:
@@ -208,7 +256,7 @@ class Crawler(object):
                         else:
                             self.submit_task(item)
                             item = None
-        except (KeyboardInterrupt, Exception) as ex:
+        except (Exception, KeyboardInterrupt) as ex:
             self.fatalq.put((sys.exc_info(), None))
 
     def is_result_ok(self, req, res):
@@ -289,9 +337,9 @@ class Crawler(object):
         })
         self.error_logger.log_error(exc_info, ctx)
 
-    def thread_manager(self, th_task_gen, pauses):
+    def thread_manager(self, task_gens, pauses):
         try:
-            th_task_gen.join()
+            [x.join() for x in task_gens]
 
             def system_is_busy():
                 return (
@@ -458,8 +506,19 @@ class Crawler(object):
             th_fatalq_proc = Thread(target=self.thread_fatalq_processor)
             th_fatalq_proc.start()
 
-            th_task_gen = Thread(target=self.thread_task_generator)
-            th_task_gen.start()
+            task_gens = []
+            if (
+                    self.master_taskq_cfg
+                    and self.num_task_generators > 1
+                ):
+                raise IowebConfigError(
+                    'num_task_generators must be 1 in'
+                    ' master task queue mode'
+                )
+            for _ in range(self.num_task_generators):
+                th = Thread(target=self.thread_task_generator)
+                th.start()
+                task_gens.append(th)
 
             th_debug = Thread(target=self.thread_debug)
             if self.debug:
@@ -479,7 +538,7 @@ class Crawler(object):
 
             th_manager = Thread(
                 target=self.thread_manager,
-                args=[th_task_gen, pauses],
+                args=[task_gens, pauses],
             )
             th_manager.start()
 
@@ -490,7 +549,7 @@ class Crawler(object):
 
             th_manager.join()
             th_fatalq_proc.join()
-            th_task_gen.join()
+            [x.join() for x in task_gens]
             if self.debug:
                 th_debug.join()
             [x.join() for x in result_workers]
