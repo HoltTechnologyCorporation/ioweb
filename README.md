@@ -1,7 +1,7 @@
 ## IOWeb Framework
 
-![](https://github.com/lorien/ioweb/workflows/pytest/badge.svg)
-![](https://github.com/lorien/ioweb/workflows/pytype/badge.svg)
+![pytest status](https://github.com/lorien/ioweb/workflows/pytest/badge.svg)
+![pytype status](https://github.com/lorien/ioweb/workflows/pytype/badge.svg)
 
 Python framework to build web crawlers.
 
