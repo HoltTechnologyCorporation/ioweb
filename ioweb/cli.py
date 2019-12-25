@@ -169,23 +169,7 @@ def run_subcommand_crawl(opts):
         ),
     )
     try:
-        if opts.profile:
-            import cProfile
-            import pyprof2calltree
-            import pstats
-
-            profile_file = 'var/%s.prof' % opts.crawler_id
-            profile_tree_file = 'var/%s.prof.out' % opts.crawler_id
-
-            prof = cProfile.Profile()
-            try:
-                prof.runctx('bot.run()', globals(), locals())
-            finally:
-                stats = pstats.Stats(prof)
-                stats.strip_dirs()
-                pyprof2calltree.convert(stats, profile_tree_file)
-        else:
-            bot.run()
+        bot.run()
     except KeyboardInterrupt:
         logging.debug('Got INT signal')
         bot.fatal_error_happened.set()
@@ -405,7 +389,6 @@ def command_ioweb():
     crawl_subparser.add_argument('crawler_id')
     crawl_subparser.add_argument('-t', '--network-threads', type=int, default=1)
     crawl_subparser.add_argument('-n', '--network-logs', action='store_true', default=False)
-    crawl_subparser.add_argument('-p', '--profile', action='store_true', default=False)
     crawl_subparser.add_argument('--debug', action='store_true', default=False)
     crawl_subparser.add_argument('-v', '--verbose', action='store_true', default=False)
     crawl_subparser.add_argument(
