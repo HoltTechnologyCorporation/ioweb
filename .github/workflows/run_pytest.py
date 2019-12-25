@@ -1,4 +1,4 @@
-name: Check with pytype
+name: Check with pytest
 
 on: [push, pull_request]
 
@@ -11,6 +11,8 @@ jobs:
       with:
         python-version: 3.5
     - run: |
-        python -m pip install --upgrade pip tox
+        python -m pip install --upgrade pip
+        pip install -r requirements_dev.txt
+        pip install -e .
     - run: |
-        tox -e pytype
+        pytest

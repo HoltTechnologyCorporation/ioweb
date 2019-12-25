@@ -1,4 +1,4 @@
-name: Check with pytest
+name: Check with pytype
 
 on: [push, pull_request]
 
@@ -11,6 +11,8 @@ jobs:
       with:
         python-version: 3.5
     - run: |
-        python -m pip install --upgrade pip tox
+        python -m pip install --upgrade pip
+        pip install -r requirements_dev.txt
+        pip install -e .
     - run: |
-        tox -e py3
+        pytype ioweb ioweb_gevent setup.py
