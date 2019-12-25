@@ -1,3 +1,5 @@
+name: pytype
+
 on: [push, pull_request]
 
 jobs:
