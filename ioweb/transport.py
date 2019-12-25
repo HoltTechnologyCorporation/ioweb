@@ -9,12 +9,12 @@ import ssl
 import re
 from functools import partial
 
-from urllib3.filepost import encode_multipart_formdata
 from urllib3.util.retry import Retry
 from urllib3.util.timeout import Timeout
 from urllib3 import exceptions, ProxyManager, make_headers
 from urllib3.contrib import pyopenssl
 from urllib3.contrib.socks import SOCKSProxyManager
+from urllib3.filepost import encode_multipart_formdata
 import urllib3
 import OpenSSL.SSL
 import certifi
@@ -61,6 +61,7 @@ class Urllib3Transport(object):
                 maxsize=pool_size,
             ),
         }
+        self.op_started = None
 
 
 
@@ -179,7 +180,7 @@ class Urllib3Transport(object):
                             ca_certs=certifi.where(),
                         )
                     else:
-                        pool = SOCKSProxyManager(proxy_url, **opts)
+                        pool = SOCKSProxyManager(proxy_url)
                 elif req['proxy_type'] == 'http':
                     if req['proxy_auth']:
                         proxy_headers = make_headers(proxy_basic_auth=req['proxy_auth'])
@@ -253,7 +254,7 @@ class Urllib3Transport(object):
         if req['data']:
             if isinstance(req['data'], dict):
                 if req['multipart']:
-                    body, ctype = encode_multipart_formata(req['data'])
+                    body, ctype = encode_multipart_formdata(req['data'])
                 else:
                     body = urlencode(req['data'])
                     ctype = 'application/x-www-form-urlencoded'

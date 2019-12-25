@@ -6,11 +6,11 @@ except ImportError:
     import json
 
 import defusedxml.lxml
-import lxml.etree
+import lxml.etree # pytype: disable=import-error
 from selection import XpathSelector
 from cssselect import HTMLTranslator
 try:
-    import selectolax.parser
+    import selectolax.parser # pytype: disable=import-error
 except ImportError:
     SELECTOLAX_IMPORTED = False
 else:
@@ -99,10 +99,12 @@ class Response(object):
     def selectolax(self):
         if not SELECTOLAX_IMPORTED:
             # Just raise usual ImportError
-            import selectolax.parser
+            import selectolax.parser # pytype: disable=import-error
         else:
             if self._cached_selectolax_dom is None:
+                # pytype: disable=name-error
                 self._cached_selectolax_dom = selectolax.parser.HTMLParser(
                     self.data.replace(b'\x00', b'')
                 )
+                # pytype: enable=name-error
             return self._cached_selectolax_dom

@@ -19,7 +19,7 @@ class Data(object):
 
     @classmethod
     def from_data(cls, data):
-        req = Data()
-        for key in ('name', 'storage',):
-            setattr(req, key, data[key])
-        return req
+        return Data(
+            data['name'],
+            meta=data['meta'],
+        )

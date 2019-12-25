@@ -119,7 +119,7 @@ class Request(BaseRequest):
 
     def method(self):
         if self.config['method']:
-            return self.config['method'].upper()
+            return self.config['method'].upper() # pytype: disable=attribute-error
         elif self.config['data']:
             return 'POST'
         else:

@@ -277,8 +277,8 @@ class Crawler(object):
             return False
 
     def thread_result_processor(self, pause):
+        error_ctx = None
         try:
-            error_ctx = None
             while not self.shutdown_event.is_set():
                 if pause.pause_event.is_set():
                     pause.process_pause()
