@@ -1,5 +1,5 @@
 import logging
-from pprint import pprint
+from pprint import pprint, pformat
 import time
 #from collections import defaultdict
 
@@ -27,6 +27,11 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
             res = db[item_type].bulk_write(ops, ordered=False)
         except BulkWriteError as ex:
             if retry == (retries - 1):
+                logging.error(
+                    'First failed operation:\n%s' % (
+                        pformat(ex.details['writeErrors'][0])
+                    )
+                )
                 raise
             else:
                 if stat:
