@@ -3,7 +3,7 @@ from pprint import pprint
 import time
 #from collections import defaultdict
 
-from pymongo import UpdateOne
+from pymongo import UpdateOne, InsertOne
 from pymongo.errors import BulkWriteError
 
 
@@ -60,6 +60,11 @@ class BulkWriter(object):
 
     def update_one(self, *args, **kwargs):
         self.ops.append(UpdateOne(*args, **kwargs))
+        if len(self.ops) >= self.bulk_size:
+            self._write_ops()
+
+    def insert_one(self, *args, **kwargs):
+        self.ops.append(InsertOne(*args, **kwargs))
         if len(self.ops) >= self.bulk_size:
             self._write_ops()
 
