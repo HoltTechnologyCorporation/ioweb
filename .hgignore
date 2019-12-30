@@ -19,3 +19,4 @@ syntax:regexp
 ^\.git/
 ^\.tox/
 ^\.coverage$
+^\.pytype/
