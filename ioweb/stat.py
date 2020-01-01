@@ -9,7 +9,10 @@ from copy import deepcopy
 import sys
 from datetime import datetime
 
+from ioweb.error import IowebConfigError
+
 logger = logging.getLogger('ioweb.stat')
+
 
 class Stat(object):
     default_key_aliases = {
@@ -227,9 +230,10 @@ class Stat(object):
 
 
 class InfluxdbExportDriver(object):
-    def __init__(self, connect_options, tags):
+    def __init__(self, connect_options, tags, measurement='crawler_stats'):
         self.connect_options = deepcopy(connect_options)
         self.client = None
+        self.measurement = measurement
         self.tags = deepcopy(tags)
         self.database_created = False
         self.connect()
@@ -247,7 +251,7 @@ class InfluxdbExportDriver(object):
             self.database_created = True
         if snapshot:
             data = {
-                "measurement": "crawler_counter",
+                "measurement": self.measurement,
                 "tags": self.tags,
                 "time": datetime.utcnow().isoformat(),
                 "fields": dict((
@@ -258,7 +262,7 @@ class InfluxdbExportDriver(object):
                 try:
                     self.client.write_points([data])
                 except RequestException:
-                    logger.exception('Fail to send metrics')
+                    logger.exception('Failed to send metrics')
                     time.sleep(1)
                     # reconnecting
                     while True:
@@ -266,10 +270,23 @@ class InfluxdbExportDriver(object):
                             self.connect()
                         except RequestException:
                             logger.exception(
-                                'Fail to reconnect to metric database'
+                                'Failed to reconnect to metrics database'
                             )
                             time.sleep(1)
                         else:
                             break
                 else:
                     break
+
+
+class CrawlerInfluxdbExportDriver(InfluxdbExportDriver):
+    def __init__(self, connect_options, tags, *args, **kwargs):
+        for key in ['hostname', 'project', 'crawler_id']:
+            if key not in tags:
+                raise IowebConfigError(
+                    'Tag %s is required to use CalwerInfluxdbExportDriver'
+                    % key
+                )
+        super(CrawlerInfluxdbExportDriver, self).__init__(
+            connect_options, tags, *args, **kwargs
+        )
