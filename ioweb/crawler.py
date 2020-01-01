@@ -219,9 +219,13 @@ class Crawler(object):
         from redis import Redis
         rdb = Redis(decode_responses=True, **cfg)
         DONE = False
+        none_task_time = time.time()
         while True:
             task = rdb.lpop(taskq_id)
             if task is None:
+                if time.time() - none_task_time > 5:
+                    none_task_time = time.time()
+                    self._flush_dataops()
                 time.sleep(0.01)
             else:
                 task = json.loads(task)
@@ -490,9 +494,12 @@ class Crawler(object):
         except (KeyboardInterrupt, Exception) as ex:
             self.fatalq.put((sys.exc_info(), None))
 
-    def shutdown(self):
+    def _flush_dataops(self):
         for name in self.dataopq.keys():
             self.enq_dataop(name, None, force_dump=True)
+
+    def shutdown(self):
+        self._flush_dataops()
         self.shutdown_hook()
 
     def shutdown_hook(self):
