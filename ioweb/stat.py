@@ -107,7 +107,8 @@ class Stat(object):
         driver_cls = getattr(driver_mod, cls_name)
         self.export_driver = driver_cls(
             tags=cfg.get('tags', {}),
-            connect_options=cfg.get('connect_options', {})
+            connect_options=cfg.get('connect_options', {}),
+            measurement=cfg.get('measurement', {})
         )
         if self.th_export:
             raise Exception('Stat export thread already created')
