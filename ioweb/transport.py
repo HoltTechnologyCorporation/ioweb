@@ -33,6 +33,8 @@ if urllib3_ver <= (1, 25, 6):
 
 
 class Urllib3Transport(object):
+    pool_manager_class = CustomPoolManager
+
     __slots__ = (
         'urllib3_response',
         'op_started',
@@ -49,13 +51,13 @@ class Urllib3Transport(object):
         self.prepare_response_hook = prepare_response_hook
         self.urllib3_response = None
         self.pools = {
-            (None, None, True): CustomPoolManager(
+            (None, None, True): self.pool_manager_class(
                 cert_reqs='CERT_REQUIRED',
                 ca_certs=certifi.where(),
                 num_pools=num_pools,
                 maxsize=pool_size,
             ),
-            (None, None, False): CustomPoolManager(
+            (None, None, False): self.pool_manager_class(
                 cert_reqs='CERT_NONE',
                 num_pools=num_pools,
                 maxsize=pool_size,

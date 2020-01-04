@@ -34,6 +34,8 @@ network_logger = logging.getLogger(__name__)
 
 
 class NetworkService(object):
+    transport_class = Urllib3Transport
+
     def __init__(
             self,
             taskq,
@@ -71,7 +73,7 @@ class NetworkService(object):
             ref = object()
             self.idle_handlers.add(ref)
             self.registry[ref] = {
-                'transport': Urllib3Transport(
+                'transport': self.transport_class(
                     prepare_response_hook=self.prepare_response_hook
                 ),
                 'request': None,

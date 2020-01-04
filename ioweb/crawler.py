@@ -35,6 +35,7 @@ class Crawler(object):
         #'time': None,
     }
     dataop_threshold = {}
+    network_service_class = NetworkService
 
     def task_generator(self):
         if False:
@@ -69,7 +70,7 @@ class Crawler(object):
             logging_format=stat_logging_format,
         )
         self.fatalq = Queue()
-        self.network = NetworkService(
+        self.network = self.network_service_class(
             self.taskq, self.resultq,
             fatalq=self.fatalq,
             threads=network_threads,
