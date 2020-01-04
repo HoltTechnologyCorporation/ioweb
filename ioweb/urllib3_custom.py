@@ -17,6 +17,13 @@ from cachetools import TTLCache
 
 log = logging.getLogger(__name__)
 
+# urllib3 do not pass SSL server name if
+# it detectes the server name is IP address
+# This hack disables the IP check and makes urllib3
+# thinks that any server name is not IPv4 address
+import urllib3.util.ssl_
+urllib3.util.ssl_.is_ipaddress = lambda x: False
+
 
 class CustomHttpConnection(HTTPConnection, object):
     def __init__(self, *args, **kwargs):
