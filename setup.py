@@ -41,6 +41,7 @@ setup(
         'python-json-logger',
         'psutil',
         'defusedxml',
+        'pymongo', # it is required for "bson" package, FIXME: REMOVE
     ],
     keywords='web scraping network crawling cralwer spider pycurl',
     classifiers = [
