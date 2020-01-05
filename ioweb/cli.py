@@ -12,6 +12,8 @@ from collections import defaultdict
 from threading import Thread, Event
 from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
 import code, traceback, signal
+from random import SystemRandom
+from hashlib import md5
 
 import psutil
 from ioweb.stat import Stat
@@ -187,21 +189,28 @@ def run_subcommand_crawl(opts):
 
 
 def get_master_taskq_id(crawler_id):
-    return 'ioweb_taskq_%s' % crawler_id.lower()
+    # uniq key is hex unix seconds + random 4 hex chars
+    uniq_key = '%s_%s' % (
+        '%x' % int(time.time()),
+        '%04x' % int(SystemRandom().randint(0, 9999)),
+    )
+    return 'ioweb_taskq_%s_%s' % (
+        crawler_id.lower(),
+        uniq_key
+    )
 
 
 def thread_worker(
         crawler_id, threads, stat, preg,
         evt_error, evt_init,
-        master_taskq=False,
+        master_taskq=False, master_taskq_id=None
     ):
     counters = defaultdict(int)
     try:
         if master_taskq:
-            taskq_id = get_master_taskq_id(crawler_id)
             master_taskq_cfg = json.dumps({
                 'backend': 'redis',
-                'taskq_id': taskq_id,
+                'taskq_id': master_taskq_id,
                 'db': 13,
             })
         else:
@@ -255,11 +264,10 @@ def thread_worker(
             break
 
 
-def thread_task_gen(crawler_id, workers, evt_error):
+def thread_task_gen(crawler_id, workers, evt_error, taskq_id):
     try:
         from redis import Redis
         rdb = Redis(db=13)
-        taskq_id = get_master_taskq_id(crawler_id)
         cls = get_crawler(crawler_id)
         bot = cls(stat_logging=False)
         try:
@@ -299,12 +307,18 @@ def run_subcommand_multi(opts):
     evt_stop = Event()
     try:
         if opts.master_taskq:
+            master_taskq_id = get_master_taskq_id(opts.crawler_id)
             th_task_gen = Thread(
                 target=thread_task_gen,
-                args=[opts.crawler_id, opts.workers, evt_error],
+                args=[
+                    opts.crawler_id, opts.workers, evt_error,
+                    master_taskq_id
+                ],
             )
             th_task_gen.daemon = True
             th_task_gen.start()
+        else:
+            master_taskq_id = None
 
         for _ in range(opts.workers):
             evt_init = Event()
@@ -317,6 +331,7 @@ def run_subcommand_multi(opts):
                 ],
                 kwargs={
                     'master_taskq': opts.master_taskq,
+                    'master_taskq_id': master_taskq_id,
                 },
             )
             th.daemon = True
