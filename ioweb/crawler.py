@@ -496,7 +496,7 @@ class Crawler(object):
             self.fatalq.put((sys.exc_info(), None))
 
     def _flush_dataops(self):
-        for name in self.dataopq.keys():
+        for name in list(self.dataopq.keys()):
             self.enq_dataop(name, None, force_dump=True)
 
     def shutdown(self):

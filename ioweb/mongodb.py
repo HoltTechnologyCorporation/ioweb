@@ -7,7 +7,7 @@ from pymongo import UpdateOne, InsertOne
 from pymongo.errors import BulkWriteError
 
 
-def bulk_write(db, item_type, ops, stat=None, retries=3):
+def bulk_write(db, item_type, ops, stat=None, retries=3, log_first_failop=True):
     """
     Tries to apply `ops` Update operations to `item_type`
     collection with `bulk_write` method.
@@ -26,12 +26,15 @@ def bulk_write(db, item_type, ops, stat=None, retries=3):
         try:
             res = db[item_type].bulk_write(ops, ordered=False)
         except BulkWriteError as ex:
+            # TODO: repeat only failed operations!!!
+            # TODO: repeat only in case of DUP (11000) errors
             if retry == (retries - 1):
-                logging.error(
-                    'First failed operation:\n%s' % (
-                        pformat(ex.details['writeErrors'][0])
+                if log_first_failop:
+                    logging.error(
+                        'First failed operation:\n%s' % (
+                            pformat(ex.details['writeErrors'][0])
+                        )
                     )
-                )
                 raise
             else:
                 if stat:
@@ -60,22 +63,29 @@ class BulkWriter(object):
         self.ops = []
 
     def _write_ops(self):
-        bulk_write(self.db, self.item_type, self.ops, self.stat)
+        res = bulk_write(self.db, self.item_type, self.ops, self.stat)
         self.ops = []
+        return res
 
     def update_one(self, *args, **kwargs):
         self.ops.append(UpdateOne(*args, **kwargs))
         if len(self.ops) >= self.bulk_size:
-            self._write_ops()
+            return self._write_ops()
+        else:
+            return None
 
     def insert_one(self, *args, **kwargs):
         self.ops.append(InsertOne(*args, **kwargs))
         if len(self.ops) >= self.bulk_size:
-            self._write_ops()
+            return self._write_ops()
+        else:
+            return None
 
     def flush(self):
         if len(self.ops):
-            self._write_ops()
+            return self._write_ops()
+        else:
+            return None
 
 
 def iterate_collection(
@@ -91,9 +101,18 @@ def iterate_collection(
     """
     recent_id = None
     count = 0
+    if sort_field in query:
+        logging.Error(
+            'Function `iterate_collection` received query'
+            ' that contains a key same as `sort_field`.'
+            ' That might goes unexpected and weird ways.'
+        )
     while True:
         if recent_id:
             query[sort_field] = {'$gt': recent_id}
+        else:
+            if sort_field in query:
+                del query[sort_field]
         items = list(db[item_type].find(
             query, fields, sort=[(sort_field, 1)], limit=iter_chunk
         ))
@@ -115,3 +134,55 @@ def iterate_collection(
                 count += 1
                 if limit and count >= limit:
                     return
+
+
+def bulk_dup_insert(db, item_type, ops, dup_key, stat=None):
+    if stat:
+        stat.inc('bulk-dup-insert-%s' % item_type, len(ops))
+    all_keys = set()
+    uniq_ops = []
+    for op in ops:
+        if not isinstance(op, InsertOne):
+            raise Exception(
+                'Function bulk_dup_insert accepts only'
+                ' InsertOne operations. Got: %s'
+                % op.__class__.__name__
+            )
+        if dup_key not in op._doc:
+            raise Exception(
+                'Operation for bulk_dup_insert'
+                ' does not have key "%s": %s'
+                % (dup_key, str(op._doc)[:1000])
+            )
+        key = op._doc[dup_key]
+        if key not in all_keys:
+            all_keys.add(key)
+            uniq_ops.append(op)
+
+    try:
+        db[item_type].bulk_write(uniq_ops, ordered=False)
+    except BulkWriteError as ex:
+        if (
+                all(x['code'] == 11000 for x in ex.details['writeErrors'])
+                and
+                not ex.details['writeConcernErrors']
+            ):
+            error_keys = set(
+                x['op'][dup_key] for x in ex.details['writeErrors']
+            )
+            res_keys = list(all_keys - error_keys)
+            if stat:
+                stat.inc(
+                    'bulk-dup-insert-%s-inserted' % item_type,
+                    len(res_keys)
+                )
+            return res_keys
+        else:
+            raise
+    else:
+        if stat:
+            stat.inc(
+                'bulk-dup-insert-%s-inserted' % item_type,
+                len(all_keys)
+            )
+        return list(all_keys)
