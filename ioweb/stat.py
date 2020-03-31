@@ -13,6 +13,8 @@ from ioweb.error import IowebConfigError
 
 logger = logging.getLogger('ioweb.stat')
 
+DEFAULT_MEASUREMENT = 'event'
+
 
 class Stat(object):
     default_key_aliases = {
@@ -108,7 +110,7 @@ class Stat(object):
         self.export_driver = driver_cls(
             tags=cfg.get('tags', {}),
             connect_options=cfg.get('connect_options', {}),
-            measurement=cfg.get('measurement', {})
+            measurement=cfg.get('measurement', None)
         )
         if self.th_export:
             raise Exception('Stat export thread already created')
@@ -231,10 +233,13 @@ class Stat(object):
 
 
 class InfluxdbExportDriver(object):
-    def __init__(self, connect_options, tags, measurement='crawler_stats'):
+    def __init__(self, connect_options, tags, measurement=None):
         self.connect_options = deepcopy(connect_options)
         self.client = None
-        self.measurement = measurement
+        if measurement:
+            self.measurement = measurement
+        else:
+            self.measurement = DEFAULT_MEASUREMENT
         self.tags = deepcopy(tags)
         self.database_created = False
         self.connect()
@@ -288,6 +293,8 @@ class CrawlerInfluxdbExportDriver(InfluxdbExportDriver):
                     'Tag %s is required to use CalwerInfluxdbExportDriver'
                     % key
                 )
+        if not kwargs.get('measurement'):
+            kwargs['measurement'] = 'crawler_stats'
         super(CrawlerInfluxdbExportDriver, self).__init__(
             connect_options, tags, *args, **kwargs
         )
