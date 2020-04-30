@@ -308,29 +308,32 @@ class Urllib3Transport(object):
 
     def read_with_timeout(self, req, res):
         read_limit = req['content_read_limit']
-        if read_limit:
+        if read_limit is not None:
             read_limit = int(read_limit)
         chunk_size = (2**16) # = 65536
         bytes_read = 0
         chunks = []
         try:
-            while True:
-                chunk = self.urllib3_response.read(chunk_size)
-                if chunk:
-                    if read_limit:
-                        chunk_limit = min(len(chunk), read_limit - bytes_read)
+            if read_limit != 0:
+                while True:
+                    chunk = self.urllib3_response.read(chunk_size)
+                    if chunk:
+                        if read_limit:
+                            chunk_limit = min(
+                                len(chunk), read_limit - bytes_read
+                            )
+                        else:
+                            chunk_limit = len(chunk)
+                        chunks.append(chunk[:chunk_limit])
+                        bytes_read += chunk_limit
+                        if read_limit and bytes_read >= read_limit:
+                            break
                     else:
-                        chunk_limit = len(chunk)
-                    chunks.append(chunk[:chunk_limit])
-                    bytes_read += chunk_limit
-                    if read_limit and bytes_read >= read_limit:
                         break
-                else:
-                    break
-                if time.time() - self.op_started > req['timeout']:
-                    raise error.OperationTimeoutError(
-                        'Timed out while reading response',
-                    )
+                    if time.time() - self.op_started > req['timeout']:
+                        raise error.OperationTimeoutError(
+                            'Timed out while reading response',
+                        )
         finally:
             res._bytes_body = b''.join(chunks)
 
