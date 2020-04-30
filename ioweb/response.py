@@ -96,10 +96,11 @@ class Response(object):
         with open(path, 'wb') as out:
             out.write(self.data)
 
-    def selectolax(self):
+    def slax_dom(self):
         if not SELECTOLAX_IMPORTED:
             # Just raise usual ImportError
-            import selectolax.parser # pytype: disable=import-error
+            #№import selectolax.parser # pytype: disable=import-error
+            raise ImportError('Could not import selectolax.parser. Install selectolax package')
         else:
             if self._cached_selectolax_dom is None:
                 # pytype: disable=name-error
@@ -108,3 +109,6 @@ class Response(object):
                 )
                 # pytype: enable=name-error
             return self._cached_selectolax_dom
+
+    def slax(self, query):
+        return self.slax_dom().css(query)
