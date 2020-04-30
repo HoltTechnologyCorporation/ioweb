@@ -33,6 +33,25 @@ from .request import Request, CallbackRequest
 network_logger = logging.getLogger(__name__)
 
 
+def log_network_request(req):
+    if isinstance(req, Request):
+        if req.retry_count > 0:
+            retry_str = ' [retry=#%d]' % req.retry_count
+        else:
+            retry_str = ''
+        if req['proxy']:
+            proxy_str = ' [proxy=%s, type=%s, auth=%s]' % (
+                req['proxy'],
+                req['proxy_type'].upper(),
+                ('YES' if req['proxy_auth'] else 'NO'),
+            )
+        else:
+            proxy_str = ''
+        network_logger.debug(
+            '%s %s%s%s', req.method(), req['url'], retry_str, proxy_str
+        )
+
+
 class NetworkService(object):
     transport_class = Urllib3Transport
 
@@ -146,27 +165,28 @@ class NetworkService(object):
         th.daemon = True
         th.start()
 
-    def log_network_request(self, req):
-        if isinstance(req, Request):
-            if req.retry_count > 0:
-                retry_str = ' [retry=#%d]' % req.retry_count
-            else:
-                retry_str = ''
-            if req['proxy']:
-                proxy_str = ' [proxy=%s, type=%s, auth=%s]' % (
-                    req['proxy'],
-                    req['proxy_type'].upper(),
-                    ('YES' if req['proxy_auth'] else 'NO'),
-                )
-            else:
-                proxy_str = ''
-            network_logger.debug(
-                '%s %s%s%s', req.method(), req['url'], retry_str, proxy_str
-            )
+    #def log_network_request(self, req):
+    #    if isinstance(req, Request):
+    #        if req.retry_count > 0:
+    #            retry_str = ' [retry=#%d]' % req.retry_count
+    #        else:
+    #            retry_str = ''
+    #        if req['proxy']:
+    #            proxy_str = ' [proxy=%s, type=%s, auth=%s]' % (
+    #                req['proxy'],
+    #                req['proxy_type'].upper(),
+    #                ('YES' if req['proxy_auth'] else 'NO'),
+    #            )
+    #        else:
+    #            proxy_str = ''
+    #        print('~~~~~~~~~~~~~~~~~~~~~~~~ %s' % req['url'])
+    #        network_logger.debug(
+    #            '%s %s%s%s', req.method(), req['url'], retry_str, proxy_str
+    #        )
 
     def thread_network(self, ref, transport, req, res):
         try:
-            self.log_network_request(req)
+            log_network_request(req)
             try:
                 timeout_time = req['timeout'] or 31536000
                 with Timeout(
