@@ -233,14 +233,14 @@ class Stat(object):
 
 
 class InfluxdbExportDriver(object):
-    def __init__(self, connect_options, tags, measurement=None):
+    def __init__(self, connect_options, tags=None, measurement=None):
         self.connect_options = deepcopy(connect_options)
         self.client = None
         if measurement:
             self.measurement = measurement
         else:
             self.measurement = DEFAULT_MEASUREMENT
-        self.tags = deepcopy(tags)
+        self.tags = deepcopy(tags or {})
         self.database_created = False
         self.connect()
 
@@ -250,39 +250,52 @@ class InfluxdbExportDriver(object):
         self.client = InfluxDBClient(**self.connect_options)
 
     def write_events(self, snapshot):
+        from influxdb.exceptions import InfluxDBClientError, InfluxDBServerError
         from requests import RequestException
 
-        if not self.database_created:
-            self.client.create_database(self.connect_options['database'])
-            self.database_created = True
-        if snapshot:
-            data = {
-                "measurement": self.measurement,
-                "tags": self.tags,
-                "time": datetime.utcnow().isoformat(),
-                "fields": dict((
-                    (x, y) for x, y in snapshot.items()
-                )),
-            }
-            while True:
-                try:
-                    self.client.write_points([data])
-                except RequestException:
-                    logger.exception('Failed to send metrics')
-                    time.sleep(1)
-                    # reconnecting
-                    while True:
-                        try:
-                            self.connect()
-                        except RequestException:
-                            logger.exception(
-                                'Failed to reconnect to metrics database'
-                            )
-                            time.sleep(1)
-                        else:
-                            break
-                else:
-                    break
+        retry_exceptions = (
+            OSError,
+            RequestException,
+            InfluxDBClientError,
+            InfluxDBServerError,
+        )
+
+        try:
+
+            if not self.database_created:
+                self.client.create_database(self.connect_options['database'])
+                self.database_created = True
+            if snapshot:
+                data = {
+                    "measurement": self.measurement,
+                    "tags": self.tags,
+                    "time": datetime.utcnow().isoformat(),
+                    "fields": dict((
+                        (x, y) for x, y in snapshot.items()
+                    )),
+                }
+                while True:
+                    try:
+                        self.client.write_points([data])
+                    except retry_exceptions:
+                        logger.exception('Failed to send metrics')
+                        time.sleep(1)
+                        # reconnecting
+                        while True:
+                            try:
+                                self.connect()
+                            except retry_exceptions:
+                                logger.exception(
+                                    'Failed to reconnect to metrics database'
+                                )
+                                time.sleep(1)
+                            else:
+                                break
+                    else:
+                        break
+        except Exception as ex:
+            logging.exception('ERROR IN STAT WRITE EVENTS')
+            raise
 
 
 class CrawlerInfluxdbExportDriver(InfluxdbExportDriver):
