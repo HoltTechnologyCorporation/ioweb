@@ -98,8 +98,6 @@ class Response(object):
 
     def slax_dom(self):
         if not SELECTOLAX_IMPORTED:
-            # Just raise usual ImportError
-            #№import selectolax.parser # pytype: disable=import-error
             raise ImportError('Could not import selectolax.parser. Install selectolax package')
         else:
             if self._cached_selectolax_dom is None:
