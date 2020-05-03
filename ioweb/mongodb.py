@@ -102,7 +102,7 @@ def iterate_collection(
     recent_id = None
     count = 0
     if sort_field in query:
-        logging.Error(
+        logging.error(
             'Function `iterate_collection` received query'
             ' that contains a key same as `sort_field`.'
             ' That might goes unexpected and weird ways.'
