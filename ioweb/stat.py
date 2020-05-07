@@ -197,22 +197,28 @@ class Stat(object):
                 raise
 
     def thread_export(self):
+        state = {
+            'prev_counters': None,
+        }
+
+        def dump_stat(state):
+            counters = deepcopy(self.total_counters)
+            if state['prev_counters']:
+                delta_counters = dict(
+                    (x, counters[x] - state['prev_counters'].get(x, 0))
+                    for x in counters.keys()
+                )
+            else:
+                delta_counters = counters
+            state['prev_counters'] = counters
+            self.export_driver.write_events(delta_counters)
+
         try:
-            prev_counters = None
             while True:
                 now = time.time()
-                counters = deepcopy(self.total_counters)
-                if prev_counters:
-                    delta_counters = dict(
-                        (x, counters[x] - prev_counters.get(x, 0))
-                        for x in counters.keys()
-                    )
-                else:
-                    delta_counters = counters
-                prev_counters = counters
-                self.export_driver.write_events(delta_counters)
+                dump_stat(state)
                 sleep_time = (
-                    self.export_interval + (time.time() - now)
+                    self.export_interval - (time.time() - now)
                 )
                 time.sleep(sleep_time)
         except (KeyboardInterrupt, Exception) as ex:
@@ -220,6 +226,8 @@ class Stat(object):
                 self.fatalq.put((sys.exc_info(), None))
             else:
                 raise
+        finally:
+            dump_stat(state)
 
     def inc(self, key, count=1):
         now_int = int(time.time())
