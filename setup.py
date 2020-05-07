@@ -8,7 +8,7 @@ with open('README.md') as inp:
 
 setup(
     name = 'ioweb',
-    version = '0.0.23',
+    version = '0.0.24',
     author = 'Gregory Petukhov',
     author_email = 'lorien@lorien.name',
     maintainer='Gregory Petukhov',
