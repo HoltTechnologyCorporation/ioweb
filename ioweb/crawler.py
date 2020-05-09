@@ -13,6 +13,7 @@ from collections import defaultdict
 import gc
 from copy import deepcopy
 from datetime import datetime
+from uuid import uuid4
 
 from .util import Pause, debug
 #from .loop import MultiCurlLoop
@@ -53,6 +54,7 @@ class Crawler(object):
             stat_logging_format='text',
             master_taskq=None
         ):
+        self.uuid = uuid4().hex
         if extra_data is None:
             self.extra_data = {}
         else:
