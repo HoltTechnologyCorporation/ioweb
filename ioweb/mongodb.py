@@ -1,6 +1,7 @@
 import logging
 from pprint import pprint, pformat
 import time
+from copy import deepcopy
 #from collections import defaultdict
 
 from pymongo import UpdateOne, InsertOne
@@ -101,6 +102,7 @@ def iterate_collection(
     """
     recent_id = None
     count = 0
+    query = deepcopy(query) # avoid side effects
     if sort_field in query:
         logging.error(
             'Function `iterate_collection` received query'
