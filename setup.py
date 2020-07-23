@@ -22,7 +22,8 @@ setup(
     license = "MIT",
     entry_points = {
         'console_scripts': [
-            'ioweb=ioweb_gevent.cli:command_ioweb',
+            'ioweb=ioweb.cli:command_ioweb',
+            'gioweb=ioweb_gevent.cli:command_ioweb',
         ],
     },
     install_requires = [
