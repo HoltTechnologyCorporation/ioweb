@@ -11,7 +11,7 @@ from urllib.request import urlopen
 from traceback import format_exception
 from collections import defaultdict
 import gc
-from copy import deepcopy
+from copy import deepcopy, copy
 from datetime import datetime
 from uuid import uuid4
 
@@ -64,7 +64,6 @@ class Crawler(object):
         self.resultq = Queue()
         self.shutdown_event = Event()
         self.fatal_error_happened = Event()
-        self.network_pause = Pause()
         self.retry_limit = retry_limit
         self.stat = Stat(
             speed_keys='crawler:request-processed',
@@ -77,7 +76,6 @@ class Crawler(object):
             fatalq=self.fatalq,
             threads=network_threads,
             shutdown_event=self.shutdown_event,
-            pause=self.network_pause,
             setup_request_hook=self.setup_request_hook,
             setup_request_proxy_hook=self.setup_request_proxy_hook,
             prepare_response_hook=self.prepare_response_hook,
@@ -534,7 +532,7 @@ class Crawler(object):
             if self.debug:
                 th_debug.start()
 
-            pauses = [self.network_pause]
+            pauses = [x['pause'] for x in self.network.threads.values()]
             result_workers = []
             for _ in range(self.result_workers):
                 pause = Pause()

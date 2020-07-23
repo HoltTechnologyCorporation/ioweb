@@ -28,7 +28,7 @@ class ControlThread(object):
             now = time.time()
             if now - op_time > op_period:
                 try:
-                    res = request(
+                    res = request( # pytype: disable=not-callable
                         self.ping_url,
                         headers={'access-token': self.token},
                         data=json.dumps(self.build_ping_data()),

@@ -3,7 +3,7 @@ import time
 import sys
 import logging
 from collections import deque
-from threading import Thread
+from threading import Thread, Event
 from uuid import uuid4
 import traceback
 from contextlib import contextmanager
@@ -23,7 +23,7 @@ except ImportError:
 
 
 from .transport import Urllib3Transport
-from .util import debug
+from .util import debug, Pause
 from .response import Response
 from .error import (
     DataNotValid, NetworkError, OperationTimeoutError, collect_error_context
@@ -63,7 +63,6 @@ class NetworkService(object):
             resultq_size_limit=None,
             threads=3,
             shutdown_event=None,
-            pause=None,
             setup_request_hook=None,
             prepare_response_hook=None,
             setup_request_proxy_hook=None,
@@ -73,12 +72,12 @@ class NetworkService(object):
         self.taskq = taskq
         self.resultq = resultq
         self.fatalq = fatalq
+        self.num_threads = threads
         if resultq_size_limit is None:
-            resultq_size_limit = threads * 2
+            resultq_size_limit = self.num_threads * 2
         self.resultq_size_limit = resultq_size_limit
         self.threads = threads
         self.shutdown_event = shutdown_event
-        self.pause = pause
         self.setup_request_hook = setup_request_hook
         self.prepare_response_hook = prepare_response_hook
         self.setup_request_proxy_hook = setup_request_proxy_hook
@@ -88,103 +87,67 @@ class NetworkService(object):
         self.idle_handlers = set()
         self.active_handlers = set()
         self.registry = {}
-        for _ in range(threads):
+        self.threads = {}
+
+    def run(self):
+        for _ in range(self.num_threads):
             ref = object()
             self.idle_handlers.add(ref)
+            pause = Pause()
+            transport = self.transport_class(
+                prepare_response_hook=self.prepare_response_hook
+            )
             self.registry[ref] = {
-                'transport': self.transport_class(
-                    prepare_response_hook=self.prepare_response_hook
-                ),
+                'transport': transport,
                 'request': None,
                 'response': None,
                 'start': None,
+                'pause': pause,
             }
+            th = Thread(
+                target=self.thread_network,
+                args=[ref, pause, transport],
+            )
+            th.daemon = True
+            th.start()
+            self.threads[ref] = th
 
-    def run(self):
-        task = None
-
+    def thread_network(self, ref, pause, transport):
+        # TODO: put exception to fatalq
         while not self.shutdown_event.is_set():
-            if self.pause.pause_event.is_set():
-                if (
-                        task is None
-                        and not len(self.active_handlers)
-                        and len(self.idle_handlers) == self.threads
-                    ):
-                    self.pause.process_pause()
+            if pause.pause_event.is_set():
+                pause.process_pause()
+                print('pause processed')
 
-            if (
-                    task is None
-                    and
-                    self.resultq.qsize() < self.resultq_size_limit
-                ):
+            req = None
+            if self.resultq.qsize() < self.resultq_size_limit:
                 try:
-                    prio, task = self.taskq.get(False)
+                    prio, req = self.taskq.get(False)
                 except Empty:
                     pass
 
-            # TODO: convert idle_handlers into queue, blocking wait on
-            # next idle handler if task available
-            if task:
-                if len(self.idle_handlers):
-                    self.start_request_thread(task)
-                    task = None
-                else:
-                    time.sleep(0.01)
+            if req:
+                self.idle_handlers.remove(ref)
+                self.active_handlers.add(ref)
+                try:
+                    res = Response()
+                    transport.prepare_request(req, res)
+                    if self.setup_request_hook:
+                        self.setup_request_hook(transport, req)
+                    if self.setup_request_proxy_hook:
+                        self.setup_request_proxy_hook(transport, req)
+                        self.process_request(ref, transport, req, res)
+                finally:
+                    req = None
+                    self.free_handler(ref)
             else:
                 time.sleep(0.01)
 
-    def start_request_thread(self, req):
-        ref = self.idle_handlers.pop()
-        transport = self.registry[ref]['transport']
-        res = Response()
-        transport.prepare_request(req, res)
-        self.active_handlers.add(ref)
-        self.registry[ref].update({
-            'request': req,
-            'response': res,
-            'start': time.time(),
-        })
 
-        if self.setup_request_hook:
-            self.setup_request_hook(transport, req)
-
-        if self.setup_request_proxy_hook:
-            self.setup_request_proxy_hook(transport, req)
-
-        #gevent.spawn(
-        #    self.thread_network,
-        #    ref,
-        #    transport,
-        #    req,
-        #    res
-        #)
-        th = Thread(
-            target=self.thread_network,
-            args=[ref, transport, req, res]
-        )
-        th.daemon = True
-        th.start()
-
-    #def log_network_request(self, req):
-    #    if isinstance(req, Request):
-    #        if req.retry_count > 0:
-    #            retry_str = ' [retry=#%d]' % req.retry_count
-    #        else:
-    #            retry_str = ''
-    #        if req['proxy']:
-    #            proxy_str = ' [proxy=%s, type=%s, auth=%s]' % (
-    #                req['proxy'],
-    #                req['proxy_type'].upper(),
-    #                ('YES' if req['proxy_auth'] else 'NO'),
-    #            )
-    #        else:
-    #            proxy_str = ''
-    #        print('~~~~~~~~~~~~~~~~~~~~~~~~ %s' % req['url'])
-    #        network_logger.debug(
-    #            '%s %s%s%s', req.method(), req['url'], retry_str, proxy_str
-    #        )
-
-    def thread_network(self, ref, transport, req, res):
+    def process_request(self, ref, transport, req, res):
+        self.registry[ref]['req'] = req
+        self.registry[ref]['res'] = res
+        self.registry[ref]['start'] = time.time()
         try:
             log_network_request(req)
             try:
@@ -224,8 +187,6 @@ class NetworkService(object):
         except Exception as ex:
             ctx = collect_error_context(req)
             self.fatalq.put((sys.exc_info(), ctx))
-        finally:
-            self.free_handler(ref)
 
     def free_handler(self, ref):
         self.active_handlers.remove(ref)
