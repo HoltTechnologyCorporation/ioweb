@@ -55,6 +55,7 @@ class Crawler(object):
             master_taskq=None
         ):
         self.uuid = uuid4().hex
+        logging.debug('Session ID: %s' % self.uuid)
         if extra_data is None:
             self.extra_data = {}
         else:
@@ -502,6 +503,8 @@ class Crawler(object):
     def shutdown(self):
         self._flush_dataops()
         self.shutdown_hook()
+        if self.stat.th_export:
+            self.stat.th_export_dump_stat()
 
     def shutdown_hook(self):
         pass

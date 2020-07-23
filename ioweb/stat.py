@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 import time
 import logging
 from importlib import import_module
-from threading import Thread
+from threading import Thread, Lock
 from copy import deepcopy
 import sys
 from datetime import datetime
@@ -81,6 +81,11 @@ class Stat(object):
         self.th_export = None
         self.export_config = export
         self.export_driver = None
+        self.th_export_state = {
+            'prev_counters': None,
+        }
+        self.th_export_lock = Lock()
+
         if self.export_config:
             self.setup_export_driver(self.export_config)
 
@@ -196,27 +201,31 @@ class Stat(object):
             else:
                 raise
 
-    def thread_export(self):
-        state = {
-            'prev_counters': None,
-        }
-
-        def dump_stat(state):
+    def th_export_dump_stat(self):
+        self.th_export_lock.acquire()
+        released = False
+        try:
             counters = deepcopy(self.total_counters)
-            if state['prev_counters']:
+            if self.th_export_state['prev_counters']:
                 delta_counters = dict(
-                    (x, counters[x] - state['prev_counters'].get(x, 0))
+                    (x, counters[x] - self.th_export_state['prev_counters'].get(x, 0))
                     for x in counters.keys()
                 )
             else:
                 delta_counters = counters
-            state['prev_counters'] = counters
+            self.th_export_state['prev_counters'] = counters
+            self.th_export_lock.release()
+            released = True
             self.export_driver.write_events(delta_counters)
+        finally:
+            if not released:
+                self.th_export_lock.release()
 
+    def thread_export(self):
         try:
             while True:
                 now = time.time()
-                dump_stat(state)
+                self.th_export_dump_stat()
                 sleep_time = (
                     self.export_interval - (time.time() - now)
                 )
@@ -227,7 +236,7 @@ class Stat(object):
             else:
                 raise
         finally:
-            dump_stat(state)
+            self.th_export_dump_stat()
 
     def inc(self, key, count=1):
         now_int = int(time.time())

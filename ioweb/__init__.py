@@ -6,9 +6,9 @@ in setup.py entry point
 """
 __version__ = '0.0.26'
 
+from .session import Session, request
 from .cli import setup_logging
 from .stat import Stat
-from .session import Session, request
 from .request import Request, CallbackRequest
 from .data import Data
 from .response import Response
