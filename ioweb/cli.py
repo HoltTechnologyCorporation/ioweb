@@ -14,6 +14,7 @@ from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
 import code, traceback, signal
 from random import SystemRandom
 from hashlib import md5
+from glob import glob
 
 import psutil
 from ioweb.stat import Stat
@@ -419,6 +420,12 @@ def command_ioweb():
     crawl_subparser.add_argument(
         '--master-taskq', type=str
     )
+    crawl_subparser.add_argument(
+        '--profile', action='store_true', default=False
+    )
+    crawl_subparser.add_argument(
+        '--profile-clock-type', choices=['cpu', 'wall'], default='cpu'
+    )
     if crawler_cls:
         crawler_cls.update_arg_parser(crawl_subparser)
 
@@ -443,7 +450,24 @@ def command_ioweb():
 
     opts = parser.parse_args()
     if opts.command == 'crawl':
-        run_subcommand_crawl(opts)
+        if opts.profile:
+            import yappi
+            yappi.set_clock_type(opts.profile_clock_type)
+            yappi.start()
+        try:
+            run_subcommand_crawl(opts)
+        finally:
+            if opts.profile:
+                yappi.stop()
+                threads = yappi.get_thread_stats()
+                for fname in glob('var/prof/*.prof'):
+                    os.unlink(fname)
+                for th in threads:
+                    stats = yappi.get_func_stats(ctx_id=th.id)
+                    stats.save('var/prof/%s.prof' % th.id, type='callgrind')
+                stats = yappi.get_func_stats()
+                stats.save('var/prof/all.prof', type='callgrind')
+
     elif opts.command == 'multi':
         run_subcommand_multi(opts)
     else:
