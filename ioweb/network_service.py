@@ -122,24 +122,23 @@ class NetworkService(object):
             req = None
             if self.resultq.qsize() < self.resultq_size_limit:
                 try:
-                    prio, req = self.taskq.get(False)
+                    prio, req = self.taskq.get(True, 0.1)
                 except Empty:
                     pass
-
-            if req:
-                self.idle_handlers.remove(ref)
-                self.active_handlers.add(ref)
-                try:
-                    res = Response()
-                    transport.prepare_request(req, res)
-                    if self.setup_request_hook:
-                        self.setup_request_hook(transport, req)
-                    if self.setup_request_proxy_hook:
-                        self.setup_request_proxy_hook(transport, req)
-                        self.process_request(ref, transport, req, res)
-                finally:
-                    req = None
-                    self.free_handler(ref)
+                if req:
+                    self.idle_handlers.remove(ref)
+                    self.active_handlers.add(ref)
+                    try:
+                        res = Response()
+                        transport.prepare_request(req, res)
+                        if self.setup_request_hook:
+                            self.setup_request_hook(transport, req)
+                        if self.setup_request_proxy_hook:
+                            self.setup_request_proxy_hook(transport, req)
+                            self.process_request(ref, transport, req, res)
+                    finally:
+                        req = None
+                        self.free_handler(ref)
             else:
                 time.sleep(0.01)
 
