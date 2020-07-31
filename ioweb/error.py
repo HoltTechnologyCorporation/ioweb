@@ -106,11 +106,15 @@ def get_error_tag(err):
 
 
 def collect_error_context(req):
-    ctx = {}
-    if 'url' in req.config:
-        ctx['req_url'] = req['url']
-    ctx['req_name'] = req.config.get('name', None)
-    if req.error_context:
+    ctx = {
+        'req_url': None,
+        'req_name': None,
+    }
+    if hasattr(req, 'config'):
+        if 'url' in req.config:
+            ctx['req_url'] = req['url']
+        ctx['req_name'] = req.config.get('name', None)
+    if getattr(req, 'error_context', None):
         try:
             ctx.update(req.error_context(req))
         except Exception as ex:

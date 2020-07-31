@@ -113,79 +113,78 @@ class NetworkService(object):
             self.threads[ref] = th
 
     def thread_network(self, ref, pause, transport):
-        # TODO: put exception to fatalq
-        while not self.shutdown_event.is_set():
-            if pause.pause_event.is_set():
-                pause.process_pause()
-                print('pause processed')
+        try:
+            while not self.shutdown_event.is_set():
+                if pause.pause_event.is_set():
+                    pause.process_pause()
+                    print('pause processed')
 
-            req = None
-            if self.resultq.qsize() < self.resultq_size_limit:
-                try:
-                    prio, req = self.taskq.get(True, 0.1)
-                except Empty:
-                    pass
-                if req:
-                    self.idle_handlers.remove(ref)
-                    self.active_handlers.add(ref)
+                req = None
+                if self.resultq.qsize() < self.resultq_size_limit:
                     try:
-                        res = Response()
-                        transport.prepare_request(req, res)
-                        if self.setup_request_hook:
-                            self.setup_request_hook(transport, req)
-                        if self.setup_request_proxy_hook:
-                            self.setup_request_proxy_hook(transport, req)
-                            self.process_request(ref, transport, req, res)
-                    finally:
-                        req = None
-                        self.free_handler(ref)
-            else:
-                time.sleep(0.01)
+                        prio, req = self.taskq.get(True, 0.1)
+                    except Empty:
+                        pass
+                    if req:
+                        self.idle_handlers.remove(ref)
+                        self.active_handlers.add(ref)
+                        try:
+                            res = Response()
+                            transport.prepare_request(req, res)
+                            if self.setup_request_hook:
+                                self.setup_request_hook(transport, req)
+                            if self.setup_request_proxy_hook:
+                                self.setup_request_proxy_hook(transport, req)
+                                self.process_request(ref, transport, req, res)
+                        finally:
+                            req = None
+                            self.free_handler(ref)
+                else:
+                    time.sleep(0.01)
+        except Exception as ex:
+            ctx = collect_error_context(req)
+            self.fatalq.put((sys.exc_info(), ctx))
 
 
     def process_request(self, ref, transport, req, res):
         self.registry[ref]['req'] = req
         self.registry[ref]['res'] = res
         self.registry[ref]['start'] = time.time()
+        log_network_request(req)
         try:
-            log_network_request(req)
-            try:
-                timeout_time = req['timeout'] or 31536000
-                with Timeout(
-                        timeout_time,
-                        OperationTimeoutError(
-                            'Timed out while reading response',
-                            Timeout(timeout_time),
-                        )
-                    ):
-                    if isinstance(req, CallbackRequest):
-                        req['network_callback'](req, res)
-                    else:
-                        transport.request(req, res)
-            except OperationTimeoutError as ex:
-                #logging.error(ex)
-                error = ex
-            except (req.retry_errors or (NetworkError, DataNotValid)) as ex:
-                #logging.error(ex)
-                error = ex
-            except Exception as ex:
-                #logging.error(ex)
-                raise
-            else:
-                error = None
-            if isinstance(req, CallbackRequest):
-                res.error = error
-            else:
-                transport.prepare_response(
-                    req, res, error, raise_network_error=False
-                )
-            self.resultq.put({
-                'request': req,
-                'response': res,
-            })
+            timeout_time = req['timeout'] or 31536000
+            with Timeout(
+                    timeout_time,
+                    OperationTimeoutError(
+                        'Timed out while reading response',
+                        Timeout(timeout_time),
+                    )
+                ):
+                if isinstance(req, CallbackRequest):
+                    req['network_callback'](req, res)
+                else:
+                    transport.request(req, res)
+        except OperationTimeoutError as ex:
+            #logging.error(ex)
+            error = ex
+        except (req.retry_errors or (NetworkError, DataNotValid)) as ex:
+            #logging.error(ex)
+            error = ex
         except Exception as ex:
-            ctx = collect_error_context(req)
-            self.fatalq.put((sys.exc_info(), ctx))
+            #logging.error(ex)
+            raise
+        else:
+            error = None
+        if isinstance(req, CallbackRequest):
+            res.error = error
+        else:
+            transport.prepare_response(
+                req, res, error, raise_network_error=False
+            )
+        self.resultq.put({
+            'request': req,
+            'response': res,
+        })
 
     def free_handler(self, ref):
         self.active_handlers.remove(ref)

@@ -17,7 +17,7 @@ setup(
     description = 'Web Scraping Framework',
     long_description = readme_content,
     long_description_content_type='text/markdown',
-    packages = find_packages(exclude=['test']),
+    packages = find_packages(exclude=['test', 'crawlers']),
     download_url='https://github.com/lorien/ioweb/releases',
     license = "MIT",
     entry_points = {
