@@ -166,7 +166,7 @@ class Urllib3Transport(object):
 
     def get_pool(self, req, use_cache=True):
         if req['proxy']:
-            if req['proxy_type'] == 'socks5' and req['proxy_auth']:
+            if req['proxy_type'] in ('socks5', 'socks5h') and req['proxy_auth']:
                 proxy_url = '%s://%s@%s' % (
                     req['proxy_type'], req['proxy_auth'], req['proxy']
                 )
@@ -174,7 +174,7 @@ class Urllib3Transport(object):
                 proxy_url = '%s://%s' % (req['proxy_type'], req['proxy'])
             pool_key = (req['proxy_type'], req['proxy'], bool(req['verify']))
             if not use_cache or pool_key not in self.pools:
-                if req['proxy_type'] == 'socks5':
+                if req['proxy_type'] in ('socks5', 'socks5h'):
                     if req['verify']:
                         pool = SOCKSProxyManager(
                             proxy_url,
