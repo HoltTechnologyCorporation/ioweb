@@ -279,6 +279,7 @@ class Urllib3Transport(object):
                 # and fall back on other counts. 
                 'connect': False,
                 'read': False,
+                'respect_retry_after_header': False,
             }
             if req['follow_redirect']:
                 retry_opts.update({
