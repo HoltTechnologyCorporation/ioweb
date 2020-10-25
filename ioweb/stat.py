@@ -8,6 +8,7 @@ from threading import Thread, Lock
 from copy import deepcopy
 import sys
 from datetime import datetime
+from copy import copy
 
 from ioweb.error import IowebConfigError
 
@@ -254,9 +255,9 @@ class InfluxdbExportDriver(object):
         self.connect_options = deepcopy(connect_options)
         self.client = None
         if measurement:
-            self.measurement = measurement
+            self.default_measurement = measurement
         else:
-            self.measurement = DEFAULT_MEASUREMENT
+            self.default_measurement = DEFAULT_MEASUREMENT
         self.tags = deepcopy(tags or {})
         self.database_created = False
         self.connect()
@@ -266,7 +267,7 @@ class InfluxdbExportDriver(object):
 
         self.client = InfluxDBClient(**self.connect_options)
 
-    def write_events(self, snapshot):
+    def write_events(self, snapshot, measurement=None, tags=None):
         from influxdb.exceptions import InfluxDBClientError, InfluxDBServerError
         from requests import RequestException
 
@@ -277,6 +278,12 @@ class InfluxdbExportDriver(object):
             InfluxDBServerError,
         )
 
+        if tags:
+            merged_tags = copy(self.tags)
+            merged_tags.update(tags)
+        else:
+            merged_tags = self.tags
+
         try:
 
             if not self.database_created:
@@ -284,8 +291,8 @@ class InfluxdbExportDriver(object):
                 self.database_created = True
             if snapshot:
                 data = {
-                    "measurement": self.measurement,
-                    "tags": self.tags,
+                    "measurement": (measurement or self.default_measurement),
+                    "tags": merged_tags,
                     "time": datetime.utcnow().isoformat(),
                     "fields": dict((
                         (x, y) for x, y in snapshot.items()
