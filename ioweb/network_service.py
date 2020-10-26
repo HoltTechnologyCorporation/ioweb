@@ -76,7 +76,6 @@ class NetworkService(object):
         if resultq_size_limit is None:
             resultq_size_limit = self.num_threads * 2
         self.resultq_size_limit = resultq_size_limit
-        self.threads = threads
         self.shutdown_event = shutdown_event
         self.setup_request_hook = setup_request_hook
         self.prepare_response_hook = prepare_response_hook
@@ -113,6 +112,7 @@ class NetworkService(object):
             self.threads[ref] = th
 
     def thread_network(self, ref, pause, transport):
+        req = None
         try:
             while not self.shutdown_event.is_set():
                 if pause.pause_event.is_set():

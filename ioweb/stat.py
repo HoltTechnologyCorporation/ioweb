@@ -208,10 +208,12 @@ class Stat(object):
         try:
             counters = deepcopy(self.total_counters)
             if self.th_export_state['prev_counters']:
+                # pytype: disable=attribute-error
                 delta_counters = dict(
                     (x, counters[x] - self.th_export_state['prev_counters'].get(x, 0))
                     for x in counters.keys()
                 )
+                # pytype: enable=attribute-error
             else:
                 delta_counters = counters
             self.th_export_state['prev_counters'] = counters

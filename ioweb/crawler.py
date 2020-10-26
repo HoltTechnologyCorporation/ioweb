@@ -535,7 +535,7 @@ class Crawler(object):
             if self.debug:
                 th_debug.start()
 
-            pauses = [x['pause'] for x in self.network.threads.values()]
+            pauses = [x['pause'] for x in self.network.registry.values()]
             result_workers = []
             for _ in range(self.result_workers):
                 pause = Pause()
