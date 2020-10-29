@@ -147,8 +147,8 @@ class NetworkService(object):
 
 
     def process_request(self, ref, transport, req, res):
-        self.registry[ref]['req'] = req
-        self.registry[ref]['res'] = res
+        self.registry[ref]['request'] = req
+        self.registry[ref]['response'] = res
         self.registry[ref]['start'] = time.time()
         log_network_request(req)
         try:

@@ -49,8 +49,8 @@ class Response(object):
         self._cached_lxml_dom = None
         self._cached_selectolax_dom = None
 
-    def write_bytes_body(self, data):
-        return self._bytes_body.write(data)
+    #def write_bytes_body(self, data):
+    #    return self._bytes_body.write(data)
 
     @property
     def data(self):
