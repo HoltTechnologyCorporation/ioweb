@@ -1,14 +1,15 @@
 from itertools import cycle
 import re
 from urllib.request import urlopen
-from random import choice
 import logging
+from random import SystemRandom
 
 RE_PROXYLINE = re.compile(r'^([^:]+):(\d+)$')
 RE_PROXYLINE_AUTH = re.compile(
     r'^([^:]+):(\d+):(.+?):(.+)$'
 )
 logger = logging.getLogger('crawler.proxylist')
+randomizer = SystemRandom()
 
 
 class Proxy(object):
@@ -126,7 +127,7 @@ class ProxyList(object):
             self._servers_iter = cycle(self._servers)
 
     def random_server(self):
-        return choice(self._servers)
+        return randomizer.choice(self._servers)
 
     def next_server(self):
         return next(self._servers_iter)
