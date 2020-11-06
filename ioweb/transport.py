@@ -182,7 +182,10 @@ class Urllib3Transport(object):
                             ca_certs=certifi.where(),
                         )
                     else:
-                        pool = SOCKSProxyManager(proxy_url)
+                        pool = SOCKSProxyManager(
+                            proxy_url,
+                            cert_reqs='CERT_NONE',
+                        )
                 elif req['proxy_type'] == 'http':
                     if req['proxy_auth']:
                         proxy_headers = make_headers(proxy_basic_auth=req['proxy_auth'])
@@ -199,6 +202,7 @@ class Urllib3Transport(object):
                         pool = ProxyManager(
                             proxy_url,
                             proxy_headers=proxy_headers,
+                            cert_reqs='CERT_NONE',
                         )
                 else:
                     raise error.IowebConfigError(
