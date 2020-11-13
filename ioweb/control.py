@@ -28,12 +28,14 @@ class ControlThread(object):
             now = time.time()
             if now - op_time > op_period:
                 try:
-                    res = request( # pytype: disable=not-callable
+                    # pytype: disable=not-callable
+                    res = request(
                         self.ping_url,
                         headers={'access-token': self.token},
                         data=json.dumps(self.build_ping_data()),
                         timeout=5
                     )
+                    # pytype: enable=not-callable
                 except NetworkError as ex:
                     logging.exception('Network error in control thread')
                 else:
