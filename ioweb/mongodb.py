@@ -188,3 +188,36 @@ def bulk_dup_insert(db, item_type, ops, dup_key, stat=None):
                 len(all_keys)
             )
         return list(all_keys)
+
+
+def bulk_simple_insert(db, item_type, ops, stat=None):
+    if stat:
+        stat.inc('bulk-dup-insert-%s' % item_type, len(ops))
+    for op in ops:
+        if not isinstance(op, InsertOne):
+            raise Exception(
+                'Function simple_bulk_insert accepts only'
+                ' InsertOne operations. Got: %s'
+                % op.__class__.__name__
+            )
+    try:
+        db[item_type].bulk_write(ops, ordered=False)
+    except BulkWriteError as ex:
+        if (
+                all(x['code'] == 11000 for x in ex.details['writeErrors'])
+                and
+                not ex.details['writeConcernErrors']
+            ):
+            if stat:
+                stat.inc(
+                    'bulk-dup-insert-%s-inserted' % item_type,
+                    len(ops) - len(ex.details['writeErrors'])
+                )
+        else:
+            raise
+    else:
+        if stat:
+            stat.inc(
+                'bulk-dup-insert-%s-inserted' % item_type,
+                len(ops)
+            )
