@@ -227,12 +227,13 @@ class Stat(object):
     def thread_export(self):
         try:
             while True:
-                now = time.time()
+                ts = time.time()
                 self.th_export_dump_stat()
                 sleep_time = (
-                    self.export_interval - (time.time() - now)
+                    self.export_interval - (time.time() - ts)
                 )
-                time.sleep(sleep_time)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
         except (KeyboardInterrupt, Exception) as ex:
             if self.fatalq:
                 self.fatalq.put((sys.exc_info(), None))
