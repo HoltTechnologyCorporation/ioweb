@@ -37,6 +37,7 @@ class Stat(object):
             logging_enabled=True,
             logging_interval=3,
             logging_format='text',
+            logging_level=logging.DEBUG,
             key_aliases=None,
             # export
             #shard_interval = 10,
@@ -57,6 +58,8 @@ class Stat(object):
         self.logging_interval = logging_interval
         # Arg: logging_format
         self.logging_format = logging_format
+        # Arg: logging_level
+        self.logging_level = logging_level
         # Arg: key_aliases
         self.key_aliases = deepcopy(self.default_key_aliases)
         if key_aliases:
@@ -190,7 +193,7 @@ class Stat(object):
         try:
             while True:
                 now = time.time()
-                logger.debug(self.render_moment(now))
+                logger.log(self.logging_level, self.render_moment(now))
                 # Sleep `self.logging_interval` seconds minus time spent on logging
                 sleep_time = (
                     self.logging_interval + (time.time() - now)
